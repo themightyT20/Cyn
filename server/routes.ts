@@ -66,27 +66,73 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ error: "Missing prompt parameter" });
       }
 
-      // Use Gemini for image generation
-      const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
       log("Generating image with prompt:", prompt);
 
-      try {
-        // For Gemini, we need to use text to describe what we want
-        const result = await model.generateContent("Generate a detailed description of an image that shows: " + prompt);
-        const response = await result.response;
-        const description = response.text();
+      // First, get a description using Gemini
+      const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent("Generate a detailed description of an image that shows: " + prompt);
+      const response = await result.response;
+      const description = response.text();
 
-        // In a real implementation, you would use a service like Stable Diffusion or DALL-E
-        // For now, return a placeholder with the description
+      try {
+        // Call RapidAPI for image generation
+        // You'll need to add your RapidAPI key as an environment variable
+        const rapidApiKey = process.env.RAPID_API_KEY;
+        
+        if (!rapidApiKey) {
+          log("No RapidAPI key found, returning description only");
+          return res.json({
+            success: true,
+            description: description,
+            imageUrl: "https://placehold.co/600x400?text=No+RapidAPI+Key",
+            message: "Add a RAPID_API_KEY environment variable to generate actual images"
+          });
+        }
+
+        // Using the Deep AI Text to Image API from RapidAPI
+        const options = {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'X-RapidAPI-Key': rapidApiKey,
+            'X-RapidAPI-Host': 'dezgo.p.rapidapi.com'
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            guidance: 7.5,
+            steps: 30,
+            sampler: 'euler_a',
+            upscale: 1,
+            negative_prompt: 'blurry, bad quality, distorted'
+          })
+        };
+
+        const imageResponse = await fetch('https://dezgo.p.rapidapi.com/text2image', options);
+        
+        if (!imageResponse.ok) {
+          throw new Error(`RapidAPI returned ${imageResponse.status}`);
+        }
+
+        // The response is a binary image, so we need to convert it to a data URL
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
+        const dataUrl = `data:image/jpeg;base64,${base64Image}`;
+
         res.json({ 
           success: true,
-          imageUrl: "https://placehold.co/600x400?text=Image+Generation",
+          imageUrl: dataUrl,
           description: description,
-          message: "Image generation with Gemini 1.5 Flash is text-only. Please integrate with an image generation API for actual images."
+          message: "Image generated successfully with RapidAPI"
         });
       } catch (error) {
-        console.error("Image generation error:", error);
-        res.status(500).json({ error: "Failed to generate image" });
+        console.error("RapidAPI image generation error:", error);
+        // Fall back to description only if RapidAPI fails
+        res.json({ 
+          success: true,
+          description: description,
+          imageUrl: "https://placehold.co/600x400?text=API+Error",
+          message: "Error with RapidAPI. Using description only."
+        });
       }
     } catch (error) {
       console.error("Image generation request error:", error);
