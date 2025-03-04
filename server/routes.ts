@@ -19,21 +19,30 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid message format" });
       }
 
-      const model = gemini.getGenerativeModel({ model: "gemini-1.0-pro" });
-      const result = await model.generateContent(parsed.data.content);
-      const response = await result.response;
-
+      // First store the user message
       const userMessage = await storage.addMessage(parsed.data);
-      const aiMessage = await storage.addMessage({
-        content: response.text(),
-        role: "assistant",
-        metadata: {}
-      });
 
-      res.json([userMessage, aiMessage]);
+      try {
+        // Then get AI response
+        const model = gemini.getGenerativeModel({ model: "gemini-1.0-pro" });
+        const result = await model.generateContent(parsed.data.content);
+        const response = await result.response;
+
+        const aiMessage = await storage.addMessage({
+          content: response.text(),
+          role: "assistant",
+          metadata: {}
+        });
+
+        res.json([userMessage, aiMessage]);
+      } catch (error) {
+        console.error("Gemini API error:", error);
+        // Still return the user message even if AI fails
+        res.json([userMessage]);
+      }
     } catch (error) {
-      console.error("Gemini API error:", error);
-      res.status(500).json({ error: "Failed to generate response" });
+      console.error("Message handling error:", error);
+      res.status(500).json({ error: "Failed to process message" });
     }
   });
 
