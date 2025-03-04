@@ -65,10 +65,7 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
       setIsSearching(true);
       const response = await searchWeb(message);
       onSend(`[Search Query]: ${message}`);
-      const results = response.items?.slice(0, 3).map((item: any) => 
-        `${item.title}\n${item.link}\n${item.snippet}`
-      ).join('\n\n');
-      onSend(`[Search Results]:\n${results || 'No results found'}`);
+      onSend(`[Search Results]:\n${JSON.stringify(response, null, 2)}`);
       setMessage("");
     } catch (error) {
       toast({
@@ -82,35 +79,47 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 mt-4">
-      <Input
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Type a message..."
-        disabled={isLoading || isGeneratingImage || isSearching}
-      />
-      <Button 
-        type="submit" 
-        disabled={isLoading || isGeneratingImage || isSearching || !message.trim()}
-      >
-        <Send className="h-4 w-4" />
-      </Button>
-      <Button 
-        type="button" 
-        variant="outline" 
-        onClick={handleImageGeneration}
-        disabled={isLoading || isGeneratingImage || isSearching || !message.trim()}
-      >
-        <Image className="h-4 w-4" />
-      </Button>
-      <Button 
-        type="button" 
-        variant="outline"
-        onClick={handleSearch}
-        disabled={isLoading || isGeneratingImage || isSearching || !message.trim()}
-      >
-        <Search className="h-4 w-4" />
-      </Button>
+    <form onSubmit={handleSubmit} className="flex gap-2">
+      <div className="flex-1 relative">
+        <Input
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Message Cyn..."
+          className="bg-[#1a1a1a] border-gray-700 text-white pr-24"
+          disabled={isLoading || isGeneratingImage || isSearching}
+        />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={handleImageGeneration}
+            disabled={isLoading || isGeneratingImage || isSearching || !message.trim()}
+            className="h-8 w-8 text-gray-400 hover:text-white"
+          >
+            <Image className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={handleSearch}
+            disabled={isLoading || isGeneratingImage || isSearching || !message.trim()}
+            className="h-8 w-8 text-gray-400 hover:text-white"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+          <Button
+            type="submit"
+            size="icon"
+            variant="ghost"
+            disabled={isLoading || isGeneratingImage || isSearching || !message.trim()}
+            className="h-8 w-8 text-gray-400 hover:text-white"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }
