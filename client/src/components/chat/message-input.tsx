@@ -38,7 +38,10 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48 bg-[#2a2a2a] text-white border-gray-700">
-          <DropdownMenuItem className="hover:bg-[#3a3a3a]">
+          <DropdownMenuItem 
+            className="hover:bg-[#3a3a3a]" 
+            onClick={() => window.dispatchEvent(new CustomEvent('toggle-image-generator'))}
+          >
             Image Generation
           </DropdownMenuItem>
           <DropdownMenuItem className="hover:bg-[#3a3a3a]">

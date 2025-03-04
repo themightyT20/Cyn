@@ -1,19 +1,39 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle 
+} from "@/components/ui/dialog";
 
 export function ImageGeneratorComponent() {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [result, setResult] = useState<{
     imageUrl?: string;
     description?: string;
     message?: string;
     error?: string;
   } | null>(null);
+
+  useEffect(() => {
+    const handleToggle = () => {
+      setIsOpen(prev => !prev);
+    };
+
+    window.addEventListener('toggle-image-generator', handleToggle);
+    
+    return () => {
+      window.removeEventListener('toggle-image-generator', handleToggle);
+    };
+  }, []);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -41,8 +61,8 @@ export function ImageGeneratorComponent() {
     }
   };
 
-  return (
-    <Card className="bg-[#252525] border-gray-700">
+  const ImageGeneratorView = () => (
+    <Card className="bg-[#252525] border-gray-700 w-full">
       <CardContent className="p-4">
         <div className="flex flex-col space-y-4">
           <div className="flex space-x-2">
@@ -61,7 +81,7 @@ export function ImageGeneratorComponent() {
               {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate"}
             </Button>
           </div>
-
+          
           {result && (
             <div className="mt-4">
               {result.error ? (
@@ -94,6 +114,19 @@ export function ImageGeneratorComponent() {
         </div>
       </CardContent>
     </Card>
+  );
+
+  return (
+    <>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-[600px] bg-[#252525] border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl font-bold">Image Generation</DialogTitle>
+          </DialogHeader>
+          <ImageGeneratorView />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
