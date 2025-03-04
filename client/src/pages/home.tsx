@@ -2,6 +2,9 @@ import React, { useState, lazy } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { MessageInput } from "@/components/chat/message-input";
+
+import { useState, lazy, Suspense } from "react";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -44,11 +47,11 @@ export default function Home() {
       </div>
 
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
-        {/* Image generator section */}
+        {/* Image generator section - now appears as dialog when the Plus button is clicked */}
         <div className="mb-4">
-          <React.Suspense fallback={<div className="text-center text-gray-400 p-4">Loading image generator...</div>}>
+          <Suspense fallback={<div className="text-center text-gray-400 p-4">Loading image generator...</div>}>
             <ImageGenerator />
-          </React.Suspense>
+          </Suspense>
         </div>
         <ScrollArea className="flex-1 px-2">
           {isLoading ? (

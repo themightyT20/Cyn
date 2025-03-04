@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ImageIcon } from "lucide-react";
 
 export const ImageGeneratorComponent = () => {
@@ -10,10 +10,25 @@ export const ImageGeneratorComponent = () => {
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
+  // Listen for the custom event to open the image generator
+  useEffect(() => {
+    const handleToggleImageGenerator = () => {
+      setIsOpen(true);
+    };
+    
+    window.addEventListener('toggle-image-generator', handleToggleImageGenerator);
+    
+    return () => {
+      window.removeEventListener('toggle-image-generator', handleToggleImageGenerator);
+    };
+  }, []);
+
   const handleGenerate = async () => {
     if (!prompt) return;
 
     setLoading(true);
+    setGeneratedImage("");
+    
     try {
       const response = await fetch("/api/generate-image", {
         method: "POST",
@@ -39,23 +54,13 @@ export const ImageGeneratorComponent = () => {
 
   return (
     <div className="relative">
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            className="p-2 bg-transparent border-none hover:bg-gray-800"
-            onClick={() => setIsOpen(true)}
-          >
-            <img 
-              src="/new-avatar.png" 
-              alt="Cyn" 
-              className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400 glow-effect"
-            />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-96 p-4 bg-[#242424] border border-gray-700 text-white">
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Image Generation</h3>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-lg bg-[#242424] border border-gray-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-medium text-center">Image Generation</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
             <div className="flex items-center space-x-2">
               <Input
                 placeholder="Enter a description to generate an image..."
@@ -68,26 +73,28 @@ export const ImageGeneratorComponent = () => {
                 disabled={loading || !prompt}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
+                <ImageIcon className="h-4 w-4 mr-2" />
                 Generate
               </Button>
             </div>
 
             {loading && (
-              <div className="mt-4 text-center text-gray-400">
-                Generating image...
+              <div className="mt-6 text-center text-gray-400 py-8">
+                <div className="animate-pulse">Generating image description...</div>
               </div>
             )}
 
             {generatedImage && !loading && (
               <div className="mt-4">
-                <div className="max-w-xl mx-auto bg-[#1a1a1a] p-4 rounded-md">
+                <div className="max-w-full mx-auto bg-[#1a1a1a] p-4 rounded-md">
+                  <h4 className="text-md font-medium mb-2 text-gray-200">Generated Description:</h4>
                   <p className="text-gray-300 whitespace-pre-line">{generatedImage}</p>
                 </div>
               </div>
             )}
           </div>
-        </PopoverContent>
-      </Popover>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
