@@ -85,7 +85,7 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Message Cyn..."
-          className="bg-[#1a1a1a] border-gray-700 text-white pr-24"
+          className="bg-[#1a1a1a] border-gray-700 text-white pr-24 h-12 rounded-full"
           disabled={isLoading || isGeneratingImage || isSearching}
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">

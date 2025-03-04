@@ -15,30 +15,35 @@ export async function registerRoutes(app: Express) {
   });
 
   app.post("/api/messages", async (req, res) => {
-    const parsed = insertMessageSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: "Invalid message format" });
+    try {
+      const parsed = insertMessageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid message format" });
+      }
+
+      const model = gemini.getGenerativeModel({ model: "gemini-1.0-pro" });
+      const result = await model.generateContent(parsed.data.content);
+      const response = await result.response;
+
+      const userMessage = await storage.addMessage(parsed.data);
+      const aiMessage = await storage.addMessage({
+        content: response.text(),
+        role: "assistant",
+        metadata: {}
+      });
+
+      res.json([userMessage, aiMessage]);
+    } catch (error) {
+      console.error("Gemini API error:", error);
+      res.status(500).json({ error: "Failed to generate response" });
     }
-
-    const model = gemini.getGenerativeModel({ model: "gemini-pro" });
-    const result = await model.generateContent(parsed.data.content);
-    const response = await result.response;
-
-    const userMessage = await storage.addMessage(parsed.data);
-    const aiMessage = await storage.addMessage({
-      content: response.text(),
-      role: "assistant",
-      metadata: {}
-    });
-
-    res.json([userMessage, aiMessage]);
   });
 
   app.post("/api/generate-image", async (req, res) => {
     try {
       const { prompt } = req.body;
       // Using Gemini to generate image description
-      const model = gemini.getGenerativeModel({ model: "gemini-pro" });
+      const model = gemini.getGenerativeModel({ model: "gemini-1.0-pro" });
       const result = await model.generateContent(
         `Create a detailed description for generating an image of: ${prompt}. 
          Focus on visual details, style, and composition.`
