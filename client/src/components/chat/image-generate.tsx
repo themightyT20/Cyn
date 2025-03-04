@@ -1,11 +1,10 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { generateImage } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
-export function ImageGenerator() {
+export function ImageGeneratorComponent() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<{imageUrl?: string, description?: string, message?: string} | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -13,11 +12,11 @@ export function ImageGenerator() {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+
     setIsLoading(true);
     setError("");
     setResult(null);
-    
+
     try {
       const data = await generateImage(prompt);
       setResult(data);
@@ -32,7 +31,7 @@ export function ImageGenerator() {
   return (
     <div className="w-full space-y-4 p-4 bg-[#222] rounded-lg">
       <h2 className="text-xl font-semibold text-white">Image Generation</h2>
-      
+
       <div className="flex gap-2">
         <Input
           value={prompt}
@@ -48,9 +47,9 @@ export function ImageGenerator() {
           Generate
         </Button>
       </div>
-      
+
       {error && <p className="text-red-400 text-sm">{error}</p>}
-      
+
       {result && (
         <div className="space-y-3">
           {result.imageUrl && (
@@ -62,13 +61,13 @@ export function ImageGenerator() {
               />
             </div>
           )}
-          
+
           {result.description && (
             <div className="text-sm text-gray-300">
               <p>{result.description}</p>
             </div>
           )}
-          
+
           {result.message && (
             <div className="text-sm text-yellow-300">
               <p>{result.message}</p>
@@ -86,7 +85,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
-export function ImageGenerator() {
+export function ImageGeneratorComponent() {
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState<{
@@ -98,14 +97,14 @@ export function ImageGenerator() {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+
     setIsGenerating(true);
     setResult(null);
-    
+
     try {
       const response = await apiRequest("POST", "/api/generate-image", { prompt });
       const data = await response.json();
-      
+
       if (data.error) {
         setResult({ error: data.error });
       } else {
@@ -142,7 +141,7 @@ export function ImageGenerator() {
               {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate"}
             </Button>
           </div>
-          
+
           {result && (
             <div className="mt-4">
               {result.error ? (
@@ -178,4 +177,4 @@ export function ImageGenerator() {
   );
 }
 
-export default ImageGenerator;
+export default ImageGeneratorComponent;

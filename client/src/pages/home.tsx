@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-const ImageGenerator = lazy(() => import("@/components/chat/image-generate").then(module => ({ default: module.ImageGenerator })));
+const ImageGenerator = lazy(() => import("@/components/chat/image-generate").then(module => ({ default: module.ImageGeneratorComponent })));
 
 export default function Home() {
   const { data: messages = [], isLoading } = useQuery<Message[]>({
