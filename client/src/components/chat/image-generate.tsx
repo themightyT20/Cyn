@@ -28,7 +28,7 @@ export const ImageGeneratorComponent = () => {
       }
 
       const data = await response.json();
-      setGeneratedImage(data.image || "Image Generation with Gemini 1.5 Flash is text-only. Please integrate with an image generation API for actual images.");
+      setGeneratedImage(data.description || "Image Generation with Gemini 1.5 Flash is text-only. Please integrate with an image generation API for actual images.");
     } catch (error) {
       console.error("Error generating image:", error);
       setGeneratedImage("Error generating image. Please try again.");
@@ -47,7 +47,7 @@ export const ImageGeneratorComponent = () => {
             onClick={() => setIsOpen(true)}
           >
             <img 
-              src="/avatar.png" 
+              src="/new-avatar.png" 
               alt="Cyn" 
               className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400 glow-effect"
             />
