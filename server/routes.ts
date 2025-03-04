@@ -24,18 +24,33 @@ export async function registerRoutes(app: Express) {
       const userMessage = await storage.addMessage(parsed.data);
 
       try {
-        // Simulate AI response for now to avoid API errors
+        // Set up chat model with Gemini 1.5 Flash
+        const model = gemini.getGenerativeModel({ model: "gemini-1.5-flash" });
+        log("Sending request to Gemini API...");
+
+        // Send message to chat model
+        const result = await model.generateContent(parsed.data.content);
+        const response = await result.response;
+        const responseText = response.text();
+        log("Generated response:", responseText);
+
+        // Store and send AI response
         const aiMessage = await storage.addMessage({
-          content: "Hello! I'm Cyn. How can I help you today?",
+          content: responseText,
           role: "assistant",
           metadata: {}
         });
-        
+
         res.json([userMessage, aiMessage]);
       } catch (error) {
-        console.error("Message handling error:", error);
-        // If AI fails, still send back the user message
-        res.json([userMessage]);
+        console.error("Gemini API error:", error);
+        // If AI fails, still send back the user message and a fallback message
+        const fallbackMessage = await storage.addMessage({
+          content: "I'm having trouble connecting to my AI services. Can you try again later?",
+          role: "assistant",
+          metadata: {}
+        });
+        res.json([userMessage, fallbackMessage]);
       }
     } catch (error) {
       console.error("Message handling error:", error);
