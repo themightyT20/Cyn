@@ -76,48 +76,44 @@ export async function registerRoutes(app: Express) {
 
       try {
         // Call RapidAPI for image generation
-        // You'll need to add your RapidAPI key as an environment variable
-        const rapidApiKey = process.env.RAPID_API_KEY;
+        // You'll need to add your API key as an environment variable
+        // For DeepAI we can use their quickstart key or a custom one
+        const apiKey = process.env.IMAGE_API_KEY;
         
-        if (!rapidApiKey) {
-          log("No RapidAPI key found, returning description only");
+        if (!apiKey && !process.env.USE_QUICKSTART_KEY) {
+          log("No API key found, returning description only");
           return res.json({
             success: true,
             description: description,
-            imageUrl: "https://placehold.co/600x400?text=No+RapidAPI+Key",
-            message: "Add a RAPID_API_KEY environment variable to generate actual images"
+            imageUrl: "https://placehold.co/600x400?text=Using+Default+API+Key",
+            message: "Using DeepAI quickstart key (rate limited). Add IMAGE_API_KEY for better results."
           });
         }
 
-        // Using Stable Diffusion API from RapidAPI
+        // Using DeepAI's text2img API
+        const formData = new FormData();
+        formData.append('text', prompt);
+        
         const options = {
           method: 'POST',
           headers: {
-            'content-type': 'application/json',
-            'X-RapidAPI-Key': rapidApiKey,
-            'X-RapidAPI-Host': 'stable-diffusion-api12.p.rapidapi.com'
+            'api-key': rapidApiKey || 'quickstart-QUdJIGlzIGNvbWluZy4uLi4K' // DeepAI offers a quickstart key
           },
-          body: JSON.stringify({
-            prompt: prompt,
-            samples: 1,
-            negative_prompt: 'blurry, bad quality, distorted',
-            width: 512,
-            height: 512
-          })
+          body: formData
         };
 
-        const imageResponse = await fetch('https://stable-diffusion-api12.p.rapidapi.com/text2img', options);
+        const imageResponse = await fetch('https://api.deepai.org/api/text2img', options);
         
         if (!imageResponse.ok) {
-          throw new Error(`RapidAPI returned ${imageResponse.status}`);
+          throw new Error(`DeepAI API returned ${imageResponse.status}`);
         }
 
         // Parse the JSON response
         const imageResult = await imageResponse.json();
         
-        // The API returns an array of base64 encoded images
-        if (imageResult && imageResult.output && imageResult.output.length > 0) {
-          const imageUrl = `data:image/jpeg;base64,${imageResult.output[0]}`;
+        // DeepAI returns a direct URL to the generated image
+        if (imageResult && imageResult.output_url) {
+          const imageUrl = imageResult.output_url;
           
           res.json({ 
             success: true,
@@ -129,13 +125,13 @@ export async function registerRoutes(app: Express) {
           throw new Error("No image data in the response");
         }
       } catch (error) {
-        console.error("RapidAPI image generation error:", error);
-        // Fall back to description only if RapidAPI fails
+        console.error("DeepAI image generation error:", error);
+        // Fall back to description only if DeepAI API fails
         res.json({ 
           success: true,
           description: description,
           imageUrl: "https://placehold.co/600x400?text=API+Error",
-          message: "Error with RapidAPI. Using description only."
+          message: "Error with DeepAI API. Using description only."
         });
       }
     } catch (error) {

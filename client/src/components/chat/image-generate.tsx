@@ -86,7 +86,10 @@ export const ImageGeneratorComponent = () => {
 
             {loading && (
               <div className="mt-6 text-center text-gray-400 py-8">
-                <div className="animate-pulse">Generating image...</div>
+                <div className="animate-pulse flex flex-col items-center">
+                  <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                  <div>Generating image...</div>
+                </div>
               </div>
             )}
 
