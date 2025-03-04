@@ -1,9 +1,7 @@
-import React, { useState, lazy } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { MessageInput } from "@/components/chat/message-input";
-
-import { useState, lazy, Suspense } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@shared/schema";
