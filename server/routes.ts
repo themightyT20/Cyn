@@ -23,7 +23,7 @@ export async function registerRoutes(app: Express) {
     const model = gemini.getGenerativeModel({ model: "gemini-pro" });
     const result = await model.generateContent(parsed.data.content);
     const response = await result.response;
-    
+
     const userMessage = await storage.addMessage(parsed.data);
     const aiMessage = await storage.addMessage({
       content: response.text(),
@@ -35,23 +35,60 @@ export async function registerRoutes(app: Express) {
   });
 
   app.post("/api/generate-image", async (req, res) => {
-    const { prompt } = req.body;
-    const model = gemini.getGenerativeModel({ model: "gemini-pro-vision" });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    res.json({ imageUrl: response.text() });
+    try {
+      const { prompt } = req.body;
+      // Using Gemini to generate image description
+      const model = gemini.getGenerativeModel({ model: "gemini-pro" });
+      const result = await model.generateContent(
+        `Create a detailed description for generating an image of: ${prompt}. 
+         Focus on visual details, style, and composition.`
+      );
+      const imageDescription = await result.response.text();
+
+      // For demo purposes, returning a placeholder image URL
+      // In a real application, you would integrate with an image generation API
+      res.json({ 
+        imageUrl: `https://picsum.photos/800/600?random=${Date.now()}`,
+        description: imageDescription 
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to generate image" });
+    }
   });
 
   app.get("/api/search", async (req, res) => {
-    const { query } = req.query;
-    const response = await axios.get("https://google-search72.p.rapidapi.com/search", {
-      params: { q: query },
-      headers: {
-        "X-RapidAPI-Key": RAPID_API_KEY,
-        "X-RapidAPI-Host": "google-search72.p.rapidapi.com"
+    try {
+      const { query } = req.query;
+      if (!query) {
+        return res.status(400).json({ error: "Query parameter is required" });
       }
-    });
-    res.json(response.data);
+
+      // Web Search
+      const webResponse = await axios.get("https://google-search72.p.rapidapi.com/search", {
+        params: { q: query },
+        headers: {
+          "X-RapidAPI-Key": RAPID_API_KEY,
+          "X-RapidAPI-Host": "google-search72.p.rapidapi.com"
+        }
+      });
+
+      // YouTube Search
+      const youtubeResponse = await axios.get("https://youtube-search-and-download.p.rapidapi.com/search", {
+        params: { query, type: "video" },
+        headers: {
+          "X-RapidAPI-Key": RAPID_API_KEY,
+          "X-RapidAPI-Host": "youtube-search-and-download.p.rapidapi.com"
+        }
+      });
+
+      res.json({
+        webResults: webResponse.data.items || [],
+        youtubeResults: youtubeResponse.data.contents || []
+      });
+    } catch (error) {
+      console.error("Search error:", error);
+      res.status(500).json({ error: "Failed to perform search" });
+    }
   });
 
   app.post("/api/training", async (req, res) => {
