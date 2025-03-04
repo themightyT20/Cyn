@@ -23,8 +23,8 @@ export async function registerRoutes(app: Express) {
       const userMessage = await storage.addMessage(parsed.data);
 
       try {
-        // Then get AI response
-        const model = gemini.getGenerativeModel({ model: "gemini-1.0-pro" });
+        // Then get AI response using the correct model name
+        const model = gemini.getGenerativeModel({ model: "gemini-pro" });
         const result = await model.generateContent(parsed.data.content);
         const response = await result.response;
 

@@ -33,13 +33,9 @@ export default function Home() {
         <h1 className="text-5xl font-bold text-white mb-4">Cyn</h1>
         <div className="w-20 h-20 rounded-full overflow-hidden mb-4">
           <img 
-            src="/cyn-avatar.png" 
+            src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23000'/%3E%3Ccircle cx='40' cy='40' r='35' fill='%23daa520'/%3E%3Ccircle cx='40' cy='40' r='25' fill='%23000'/%3E%3Ccircle cx='45' cy='35' r='8' fill='%23daa520'/%3E%3C/svg%3E"
             alt="Cyn"
             className="w-full h-full object-cover"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23daa520'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='32' fill='%23fff'%3EC%3C/text%3E%3C/svg%3E";
-            }}
           />
         </div>
       </div>
