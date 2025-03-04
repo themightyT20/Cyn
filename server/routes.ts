@@ -3,8 +3,13 @@ import express, { Request, Response, Router } from "express";
 import { nanoid } from "nanoid";
 import { existsSync, promises as fs } from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { Server } from "http";
 import { log } from "./vite";
+
+// Convert URL to file path for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load/Create messages storage
 const messagesPath = path.join(__dirname, "..", "messages.json");
