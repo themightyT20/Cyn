@@ -20,24 +20,21 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid message format" });
       }
 
-      // Store the user message first
+      // Store the user message
       const userMessage = await storage.addMessage(parsed.data);
 
       try {
-        // Generate AI response
+        // Set up chat model
         const model = gemini.getGenerativeModel({ model: "gemini-pro" });
         log("Sending request to Gemini API...");
 
-        const prompt = `You are Cyn, a knowledgeable and friendly AI assistant. 
-        Respond to: ${parsed.data.content}
-        Keep responses concise and natural.`;
-
-        const result = await model.generateContent(prompt);
+        // Send message to chat model
+        const result = await model.generateContent(parsed.data.content);
         const response = await result.response;
         const responseText = response.text();
         log("Generated response:", responseText);
 
-        // Store AI response
+        // Store and send AI response
         const aiMessage = await storage.addMessage({
           content: responseText,
           role: "assistant",
@@ -47,7 +44,7 @@ export async function registerRoutes(app: Express) {
         res.json([userMessage, aiMessage]);
       } catch (error) {
         console.error("Gemini API error:", error);
-        // If AI fails, still send the user message back
+        // If AI fails, still send back the user message
         res.json([userMessage]);
       }
     } catch (error) {

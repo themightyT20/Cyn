@@ -9,8 +9,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 export default function Home() {
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
-    refetchInterval: 1000, // Poll for new messages
-    refetchOnWindowFocus: true
+    refetchInterval: 1000,
+    refetchOnWindowFocus: true,
+    staleTime: 0
   });
 
   const messageMutation = useMutation({

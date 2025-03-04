@@ -39,13 +39,13 @@ export function MessageInput({ onSend, isLoading }: MessageInputProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48 bg-[#2a2a2a] text-white border-gray-700">
           <DropdownMenuItem className="hover:bg-[#3a3a3a]">
-            Generate Image
+            Image Generation
           </DropdownMenuItem>
           <DropdownMenuItem className="hover:bg-[#3a3a3a]">
-            Search Web
+            Web Search
           </DropdownMenuItem>
           <DropdownMenuItem className="hover:bg-[#3a3a3a]">
-            Upload Training Data
+            Training Data
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
