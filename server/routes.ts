@@ -19,17 +19,22 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid message format" });
       }
 
-      // First store the user message
+      // Store the user message first
       const userMessage = await storage.addMessage(parsed.data);
 
       try {
-        // Then get AI response using the correct model name
+        // Generate AI response
         const model = gemini.getGenerativeModel({ model: "gemini-pro" });
+        console.log("Sending request to Gemini API...");
         const result = await model.generateContent(parsed.data.content);
+        console.log("Received response from Gemini API");
         const response = await result.response;
+        const responseText = response.text();
+        console.log("Generated response:", responseText);
 
+        // Store AI response
         const aiMessage = await storage.addMessage({
-          content: response.text(),
+          content: responseText,
           role: "assistant",
           metadata: {}
         });
@@ -37,7 +42,7 @@ export async function registerRoutes(app: Express) {
         res.json([userMessage, aiMessage]);
       } catch (error) {
         console.error("Gemini API error:", error);
-        // Still return the user message even if AI fails
+        // Return just the user message if AI fails
         res.json([userMessage]);
       }
     } catch (error) {
