@@ -7,8 +7,10 @@ import { Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function Home() {
-  const { data: messages, isLoading } = useQuery<Message[]>({
-    queryKey: ["/api/messages"]
+  const { data: messages = [], isLoading } = useQuery<Message[]>({
+    queryKey: ["/api/messages"],
+    refetchInterval: false,
+    refetchOnWindowFocus: false
   });
 
   const messageMutation = useMutation({
@@ -26,45 +28,45 @@ export default function Home() {
   });
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] flex flex-col items-center p-4">
-      <div className="w-full max-w-2xl mx-auto flex flex-col items-center">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-white mb-2">Cyn</h1>
-          <div className="w-24 h-24 rounded-full overflow-hidden mx-auto mb-4">
-            <img 
-              src="/logo.jpg" 
-              alt="Cyn Avatar"
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.currentTarget.src = "https://via.placeholder.com/96?text=Cyn";
-              }}
-            />
-          </div>
+    <div className="min-h-screen bg-[#1a1a1a] flex flex-col">
+      <div className="flex flex-col items-center pt-8 pb-4">
+        <h1 className="text-5xl font-bold text-white mb-4">Cyn</h1>
+        <div className="w-20 h-20 rounded-full overflow-hidden mb-4">
+          <img 
+            src="/assets/cyn-avatar.png" 
+            alt="Cyn"
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.src = "https://via.placeholder.com/80?text=Cyn";
+            }}
+          />
         </div>
+      </div>
 
-        <div className="w-full bg-[#2a2a2a] rounded-lg shadow-xl overflow-hidden">
-          <ScrollArea className="h-[500px] p-4">
-            {isLoading ? (
-              <div className="flex justify-center text-gray-400">
-                Loading messages...
-              </div>
-            ) : messages?.length === 0 ? (
-              <div className="text-center text-gray-400">
-                Start a conversation...
-              </div>
-            ) : (
-              messages?.map((message) => (
+      <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4">
+        <ScrollArea className="flex-1 px-2">
+          {isLoading ? (
+            <div className="text-center text-gray-400 mt-4">
+              Loading...
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="text-center text-gray-400 mt-4">
+              No messages yet. Start a conversation!
+            </div>
+          ) : (
+            <div className="space-y-4 py-4">
+              {messages.map((message) => (
                 <MessageBubble key={message.id} message={message} />
-              ))
-            )}
-          </ScrollArea>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
 
-          <div className="border-t border-gray-700 p-4 bg-[#232323]">
-            <MessageInput 
-              onSend={(content) => messageMutation.mutate(content)}
-              isLoading={messageMutation.isPending}
-            />
-          </div>
+        <div className="p-4">
+          <MessageInput 
+            onSend={(content) => messageMutation.mutate(content)}
+            isLoading={messageMutation.isPending}
+          />
         </div>
       </div>
     </div>
