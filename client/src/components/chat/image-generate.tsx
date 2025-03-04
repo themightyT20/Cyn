@@ -1,133 +1,93 @@
-
-import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import React, { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { apiRequest } from "@/lib/queryClient";
-import { Card, CardContent } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
-import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle 
-} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ImageIcon } from "lucide-react";
 
-export function ImageGeneratorComponent() {
+export const ImageGeneratorComponent = () => {
   const [prompt, setPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState("");
+  const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [result, setResult] = useState<{
-    imageUrl?: string;
-    description?: string;
-    message?: string;
-    error?: string;
-  } | null>(null);
-
-  useEffect(() => {
-    const handleToggle = () => {
-      setIsOpen(prev => !prev);
-    };
-
-    window.addEventListener('toggle-image-generator', handleToggle);
-    
-    return () => {
-      window.removeEventListener('toggle-image-generator', handleToggle);
-    };
-  }, []);
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+    if (!prompt) return;
 
-    setIsGenerating(true);
-    setResult(null);
-
+    setLoading(true);
     try {
-      const response = await apiRequest("POST", "/api/generate-image", { prompt });
-      const data = await response.json();
+      const response = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ prompt }),
+      });
 
-      if (data.error) {
-        setResult({ error: data.error });
-      } else {
-        setResult({
-          imageUrl: data.imageUrl,
-          description: data.description,
-          message: data.message
-        });
+      if (!response.ok) {
+        throw new Error("Failed to generate image");
       }
+
+      const data = await response.json();
+      setGeneratedImage(data.image || "Image Generation with Gemini 1.5 Flash is text-only. Please integrate with an image generation API for actual images.");
     } catch (error) {
-      setResult({ error: "Failed to generate image. Please try again." });
+      console.error("Error generating image:", error);
+      setGeneratedImage("Error generating image. Please try again.");
     } finally {
-      setIsGenerating(false);
+      setLoading(false);
     }
   };
 
-  const ImageGeneratorView = () => (
-    <Card className="bg-[#252525] border-gray-700 w-full">
-      <CardContent className="p-4">
-        <div className="flex flex-col space-y-4">
-          <div className="flex space-x-2">
-            <Input
-              className="bg-[#333] border-gray-700 text-white"
-              placeholder="Describe an image..."
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleGenerate()}
-            />
-            <Button 
-              onClick={handleGenerate}
-              disabled={isGenerating || !prompt.trim()}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Generate"}
-            </Button>
-          </div>
-          
-          {result && (
-            <div className="mt-4">
-              {result.error ? (
-                <div className="text-red-400 text-sm">{result.error}</div>
-              ) : (
-                <div className="space-y-3">
-                  {result.imageUrl && (
-                    <div className="flex justify-center">
-                      <img 
-                        src={result.imageUrl} 
-                        alt="Generated" 
-                        className="max-w-full h-auto rounded-md"
-                      />
-                    </div>
-                  )}
-                  {result.description && (
-                    <div className="text-sm text-gray-300 mt-2 max-h-24 overflow-y-auto">
-                      <p>{result.description}</p>
-                    </div>
-                  )}
-                  {result.message && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      <p>{result.message}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-
   return (
-    <>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[600px] bg-[#252525] border-gray-700 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-bold">Image Generation</DialogTitle>
-          </DialogHeader>
-          <ImageGeneratorView />
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+    <div className="relative">
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button 
+            variant="outline" 
+            className="p-2 bg-transparent border-none hover:bg-gray-800"
+            onClick={() => setIsOpen(true)}
+          >
+            <img 
+              src="/avatar.png" 
+              alt="AI Avatar" 
+              className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400 glow-effect"
+            />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-96 p-4 bg-[#242424] border border-gray-700 text-white">
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Image Generation</h3>
+            <div className="flex items-center space-x-2">
+              <Input
+                placeholder="Enter a description to generate an image..."
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="flex-1 bg-[#1a1a1a] border-gray-700 text-white"
+              />
+              <Button 
+                onClick={handleGenerate} 
+                disabled={loading || !prompt}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Generate
+              </Button>
+            </div>
 
-export default ImageGeneratorComponent;
+            {loading && (
+              <div className="mt-4 text-center text-gray-400">
+                Generating image...
+              </div>
+            )}
+
+            {generatedImage && !loading && (
+              <div className="mt-4">
+                <div className="max-w-xl mx-auto bg-[#1a1a1a] p-4 rounded-md">
+                  <p className="text-gray-300 whitespace-pre-line">{generatedImage}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+};
