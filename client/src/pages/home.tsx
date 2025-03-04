@@ -36,7 +36,7 @@ export default function Home() {
         <h1 className="text-5xl font-bold text-white mb-4">Cyn</h1>
         <div className="w-20 h-20 rounded-full overflow-hidden mb-4">
           <img 
-            src="/avatar.png" 
+            src="/new-avatar.png" 
             alt="Cyn"
             className="w-full h-full object-cover border-2 border-yellow-400 glow-effect"
           />
