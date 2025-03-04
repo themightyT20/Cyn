@@ -89,41 +89,45 @@ export async function registerRoutes(app: Express) {
           });
         }
 
-        // Using the Deep AI Text to Image API from RapidAPI
+        // Using Stable Diffusion API from RapidAPI
         const options = {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
             'X-RapidAPI-Key': rapidApiKey,
-            'X-RapidAPI-Host': 'dezgo.p.rapidapi.com'
+            'X-RapidAPI-Host': 'stable-diffusion-api12.p.rapidapi.com'
           },
           body: JSON.stringify({
             prompt: prompt,
-            guidance: 7.5,
-            steps: 30,
-            sampler: 'euler_a',
-            upscale: 1,
-            negative_prompt: 'blurry, bad quality, distorted'
+            samples: 1,
+            negative_prompt: 'blurry, bad quality, distorted',
+            width: 512,
+            height: 512
           })
         };
 
-        const imageResponse = await fetch('https://dezgo.p.rapidapi.com/text2image', options);
+        const imageResponse = await fetch('https://stable-diffusion-api12.p.rapidapi.com/text2img', options);
         
         if (!imageResponse.ok) {
           throw new Error(`RapidAPI returned ${imageResponse.status}`);
         }
 
-        // The response is a binary image, so we need to convert it to a data URL
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const base64Image = Buffer.from(imageBuffer).toString('base64');
-        const dataUrl = `data:image/jpeg;base64,${base64Image}`;
-
-        res.json({ 
-          success: true,
-          imageUrl: dataUrl,
-          description: description,
-          message: "Image generated successfully with RapidAPI"
-        });
+        // Parse the JSON response
+        const imageResult = await imageResponse.json();
+        
+        // The API returns an array of base64 encoded images
+        if (imageResult && imageResult.output && imageResult.output.length > 0) {
+          const imageUrl = `data:image/jpeg;base64,${imageResult.output[0]}`;
+          
+          res.json({ 
+            success: true,
+            imageUrl: imageUrl,
+            description: description,
+            message: "Image generated successfully with Stable Diffusion"
+          });
+        } else {
+          throw new Error("No image data in the response");
+        }
       } catch (error) {
         console.error("RapidAPI image generation error:", error);
         // Fall back to description only if RapidAPI fails

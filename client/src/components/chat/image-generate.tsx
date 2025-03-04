@@ -27,7 +27,7 @@ export const ImageGeneratorComponent = () => {
     if (!prompt) return;
 
     setLoading(true);
-    setGeneratedImage("");
+    setGeneratedImage(null);
     
     try {
       const response = await fetch("/api/generate-image", {
@@ -47,7 +47,12 @@ export const ImageGeneratorComponent = () => {
       setGeneratedImage(data);
     } catch (error) {
       console.error("Error generating image:", error);
-      setGeneratedImage("Error generating image. Please try again.");
+      setGeneratedImage({
+        success: false,
+        description: "Error generating image. Please try again.",
+        imageUrl: "https://placehold.co/600x400?text=Error+Generating+Image",
+        message: "An error occurred during image generation."
+      });
     } finally {
       setLoading(false);
     }
@@ -81,7 +86,7 @@ export const ImageGeneratorComponent = () => {
 
             {loading && (
               <div className="mt-6 text-center text-gray-400 py-8">
-                <div className="animate-pulse">Generating image description...</div>
+                <div className="animate-pulse">Generating image...</div>
               </div>
             )}
 
@@ -89,17 +94,17 @@ export const ImageGeneratorComponent = () => {
               <div className="mt-4">
                 <div className="text-center mb-4">
                   <img 
-                    src={data.imageUrl || "https://placehold.co/600x400?text=AI+Image+Placeholder"} 
+                    src={generatedImage.imageUrl || "https://placehold.co/600x400?text=AI+Image+Placeholder"} 
                     alt="Generated Image" 
                     className="mx-auto rounded-md border border-gray-700 max-w-full" 
                   />
-                  {data.message && (
-                    <p className="text-xs text-amber-400 mt-2">{data.message}</p>
+                  {generatedImage.message && (
+                    <p className="text-xs text-amber-400 mt-2">{generatedImage.message}</p>
                   )}
                 </div>
                 <div className="max-w-full mx-auto bg-[#1a1a1a] p-4 rounded-md">
                   <h4 className="text-md font-medium mb-2 text-gray-200">Generated Description:</h4>
-                  <p className="text-gray-300 whitespace-pre-line">{generatedImage?.description || "No description available"}</p>
+                  <p className="text-gray-300 whitespace-pre-line">{generatedImage.description || "No description available"}</p>
                 </div>
               </div>
             )}
