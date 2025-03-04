@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { storage } from "./storage";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { insertMessageSchema } from "@shared/schema";
+import { log } from "./vite";
 
 const gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -25,12 +26,16 @@ export async function registerRoutes(app: Express) {
       try {
         // Generate AI response
         const model = gemini.getGenerativeModel({ model: "gemini-pro" });
-        console.log("Sending request to Gemini API...");
-        const result = await model.generateContent(parsed.data.content);
-        console.log("Received response from Gemini API");
+        log("Sending request to Gemini API...");
+
+        const prompt = `You are Cyn, a knowledgeable and friendly AI assistant. 
+        Respond to: ${parsed.data.content}
+        Keep responses concise and natural.`;
+
+        const result = await model.generateContent(prompt);
         const response = await result.response;
         const responseText = response.text();
-        console.log("Generated response:", responseText);
+        log("Generated response:", responseText);
 
         // Store AI response
         const aiMessage = await storage.addMessage({
@@ -42,7 +47,7 @@ export async function registerRoutes(app: Express) {
         res.json([userMessage, aiMessage]);
       } catch (error) {
         console.error("Gemini API error:", error);
-        // Return just the user message if AI fails
+        // If AI fails, still send the user message back
         res.json([userMessage]);
       }
     } catch (error) {
