@@ -48,7 +48,7 @@ export const ImageGeneratorComponent = () => {
           >
             <img 
               src="/avatar.png" 
-              alt="AI Avatar" 
+              alt="Cyn" 
               className="w-10 h-10 rounded-full object-cover border-2 border-yellow-400 glow-effect"
             />
           </Button>
