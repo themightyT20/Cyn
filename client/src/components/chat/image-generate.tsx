@@ -30,6 +30,7 @@ export const ImageGeneratorComponent = () => {
     setGeneratedImage(null);
 
     try {
+      console.log("Sending image generation request for prompt:", prompt);
       const response = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,16 +38,28 @@ export const ImageGeneratorComponent = () => {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to generate image");
+        const errorText = await response.text();
+        throw new Error(`Server returned ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
-      setGeneratedImage(data);
+
+      if (data.success) {
+        console.log("Image generated successfully");
+        setGeneratedImage(data);
+      } else {
+        console.error('Error from API:', data.error);
+        setGeneratedImage({
+          success: false,
+          message: data.error || 'The image could not be generated.'
+        });
+      }
     } catch (error) {
-      console.error("Error generating image:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error generating image:', errorMessage);
       setGeneratedImage({
         success: false,
-        message: "Error generating image. Please try again."
+        message: `Could not generate image: ${errorMessage}`
       });
     } finally {
       setLoading(false);

@@ -40,13 +40,68 @@ export async function registerRoutes(app: express.Express) {
         metadata: metadata || {}
       });
 
+      // Load Cyn training data
+      const cynTrainingDataPath = path.join(__dirname, "..", "cyn-training-data.json");
+      let cynData;
+      try {
+        const dataRaw = await fs.readFile(cynTrainingDataPath, 'utf-8');
+        cynData = JSON.parse(dataRaw);
+        console.log("Loaded Cyn training data successfully");
+      } catch (err) {
+        console.error("Error loading Cyn training data:", err);
+        cynData = null;
+      }
+
       // Get AI response using the correct Gemini model
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
       // Use gemini-1.5-pro-latest model
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
       console.log("Generating AI response for:", content);
-      const result = await model.generateContent(content);
+      
+      // Build system prompt with Cyn's personality
+      let systemPrompt = "You are a standard AI assistant.";
+      let exampleConversations = [];
+      
+      if (cynData) {
+        // Extract character info and example conversations
+        const { character, conversations, response_guidelines } = cynData;
+        
+        // Build a rich system prompt based on Cyn's character
+        systemPrompt = `You are ${character.name}, ${character.personality}. ${character.background}. 
+Your tone is ${character.tone}.
+Your traits include: ${character.traits.join(', ')}.
+Follow these guidelines: ${response_guidelines.general_approach}
+Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
+        
+        // Use the example conversations for few-shot learning
+        exampleConversations = conversations.map(conv => ({
+          role: "user",
+          parts: [{ text: conv.user }]
+        })).flatMap((userMsg, i) => [
+          userMsg,
+          {
+            role: "model",
+            parts: [{ text: conversations[i].assistant }]
+          }
+        ]);
+      }
+      
+      // Generate response
+      const chat = model.startChat({
+        history: exampleConversations,
+        generationConfig: {
+          temperature: 0.7,
+          topP: 0.8,
+          topK: 40,
+        }
+      });
+      
+      const result = await chat.sendMessage([
+        { text: systemPrompt, role: "system" },
+        { text: content }
+      ]);
+      
       const response = await result.response;
 
       // Save AI response
