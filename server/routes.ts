@@ -40,9 +40,10 @@ export async function registerRoutes(app: express.Express) {
         metadata: metadata || {}
       });
 
-      // Get AI response using gemini-pro model
+      // Get AI response using the correct Gemini model
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      // Use gemini-1.0-pro instead of gemini-pro
+      const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
       console.log("Generating AI response for:", content);
       const result = await model.generateContent(content);
@@ -122,8 +123,8 @@ export async function registerRoutes(app: express.Express) {
       const response = await fetch('https://api.deepai.org/api/text2img', {
         method: 'POST',
         headers: {
-          'api-key': process.env.DEEP_AI_KEY as string,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Api-Key': process.env.DEEP_AI_KEY || ''  // Changed from 'api-key' to 'Api-Key'
         },
         body: JSON.stringify({ text: prompt })
       });
