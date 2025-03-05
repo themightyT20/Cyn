@@ -110,6 +110,7 @@ export async function registerRoutes(app: express.Express) {
   // Generate image endpoint
   router.post("/api/generate-image", async (req: Request, res: Response) => {
     const { prompt } = req.body;
+    const apiKey = process.env.DEEP_AI_KEY;
 
     if (!prompt) {
       return res.status(400).json({ 
@@ -118,19 +119,33 @@ export async function registerRoutes(app: express.Express) {
       });
     }
 
+    if (!apiKey) {
+      console.error("DeepAI API key is missing");
+      return res.status(500).json({
+        success: false,
+        error: "API key configuration is missing"
+      });
+    }
+
     try {
       console.log("Generating image with prompt:", prompt);
+      
+      // Use FormData instead of JSON for DeepAI API
+      const formData = new FormData();
+      formData.append('text', prompt);
+      
       const response = await fetch('https://api.deepai.org/api/text2img', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Api-Key': process.env.DEEP_AI_KEY || ''
+          'Api-Key': apiKey
         },
-        body: JSON.stringify({ text: prompt })
+        body: formData
       });
 
       if (!response.ok) {
-        throw new Error(`DeepAI API returned ${response.status}`);
+        const errorText = await response.text();
+        console.error(`DeepAI API error (${response.status}):`, errorText);
+        throw new Error(`DeepAI API returned ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
