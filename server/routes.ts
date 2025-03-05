@@ -58,22 +58,22 @@ export async function registerRoutes(app: express.Express) {
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
       console.log("Generating AI response for:", content);
-      
+
       // Build system prompt with Cyn's personality
       let systemPrompt = "You are a standard AI assistant.";
       let exampleConversations = [];
-      
+
       if (cynData) {
         // Extract character info and example conversations
         const { character, conversations, response_guidelines } = cynData;
-        
+
         // Build a rich system prompt based on Cyn's character
         systemPrompt = `You are ${character.name}, ${character.personality}. ${character.background}. 
 Your tone is ${character.tone}.
 Your traits include: ${character.traits.join(', ')}.
 Follow these guidelines: ${response_guidelines.general_approach}
 Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
-        
+
         // Use the example conversations for few-shot learning
         exampleConversations = conversations.map(conv => ({
           role: "user",
@@ -86,7 +86,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           }
         ]);
       }
-      
+
       // Generate response
       const chat = model.startChat({
         history: exampleConversations,
@@ -96,10 +96,10 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           topK: 40,
         }
       });
-      
+
       // Get the AI's memory
       const memory = await storage.getMemory();
-      
+
       // Include memory in the prompt if it exists
       let memoryPrompt = "";
       if (Object.keys(memory).length > 0) {
@@ -108,26 +108,26 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           memoryPrompt += `- ${key}: ${value}\n`;
         }
       }
-      
+
       // In Gemini API, we can't use a direct "role: system" parameter
       // Instead, we need to prepend the system prompt to the user's message
       const promptWithSystem = `${systemPrompt}${memoryPrompt}\n\nYou can remember new information about the user by including [MEMORY:key=value] anywhere in your response. This won't be shown to the user.\n\nUser message: ${content}`;
       const result = await chat.sendMessage(promptWithSystem);
-      
+
       const response = await result.response;
-      
+
       // Extract and process memory instructions from the response
       let responseText = response.text();
       const memoryRegex = /\[MEMORY:([^=]+)=([^\]]+)\]/g;
       let match;
-      
+
       while ((match = memoryRegex.exec(responseText)) !== null) {
         const key = match[1].trim();
         const value = match[2].trim();
         await storage.updateMemory(key, value);
         console.log(`Memory updated: ${key} = ${value}`);
       }
-      
+
       // Remove memory instructions from the final response
       responseText = responseText.replace(memoryRegex, "");
 
@@ -198,38 +198,54 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       // If we still have no results, try a fallback scraping approach
       if (results.length === 0) {
         console.log("No results from DuckDuckGo API, trying fallback...");
-        
+
         // Using DuckDuckGo HTML search as fallback
         const fallbackResponse = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
         const html = await fallbackResponse.text();
-        
+
         // Very basic extraction of results from HTML (a more robust solution would use a proper HTML parser)
         const resultMatches = html.match(/<div class="result[^>]*>[\s\S]*?<\/div>/g);
-        
+
         if (resultMatches && resultMatches.length > 0) {
           const fallbackResults = resultMatches.slice(0, 5).map(match => {
             // Extract title
             const titleMatch = match.match(/<a class="result__a"[^>]*>(.*?)<\/a>/);
             const title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, '') : 'Search Result';
-            
+
             // Extract snippet
             const snippetMatch = match.match(/<a class="result__snippet"[^>]*>(.*?)<\/a>/);
             const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '') : '';
-            
+
             // Extract link
             const linkMatch = match.match(/href="([^"]*)/);
-            const link = linkMatch ? linkMatch[1] : '';
-            
+            const rawLink = linkMatch ? linkMatch[1] : '';
+
+            // Handle DuckDuckGo's redirect URLs properly
+            let link = rawLink;
+            // Clean up DuckDuckGo redirect links to extract the actual URL
+            if (rawLink.includes('//duckduckgo.com/l/')) {
+              try {
+                // Extract the actual URL from the uddg parameter
+                const uddgMatch = rawLink.match(/uddg=([^&]+)/);
+                if (uddgMatch && uddgMatch[1]) {
+                  link = decodeURIComponent(uddgMatch[1]);
+                }
+              } catch (e) {
+                console.log('Error extracting URL from DuckDuckGo redirect:', e);
+              }
+            }
+
             // Extract website name from link
             let source = 'DuckDuckGo';
             try {
-              if (link) {
+              if (link && link.startsWith('http')) {
                 source = new URL(link).hostname.replace('www.', '');
               }
             } catch (e) {
-              console.log('Could not parse URL:', link);
+              console.log('Could not parse URL, using raw link instead');
+              // Don't log the full URL to avoid console spam
             }
-            
+
             return { 
               title, 
               snippet, 
@@ -238,7 +254,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
               description: `From ${source}: ${snippet.substring(0, 120)}${snippet.length > 120 ? '...' : ''}`
             };
           });
-          
+
           results = fallbackResults;
         }
       }
@@ -251,13 +267,13 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       });
     } catch (error) {
       console.error("Error performing web search:", error);
-      
+
       // Try a simple backup search approach as last resort
       try {
         console.log("Attempting last resort search method");
         const backupResponse = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`);
         const backupData = await backupResponse.json();
-        
+
         // Create a simple result even if just returning the query
         const backupResults = [{
           title: backupData.Heading || query,
@@ -266,7 +282,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           source: backupData.AbstractSource || "DuckDuckGo",
           description: `From ${backupData.AbstractSource || "DuckDuckGo"}: ${backupData.AbstractText || `Search results for ${query}`}`
         }];
-        
+
         return res.json({
           success: true,
           results: backupResults,
@@ -304,7 +320,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
 
     try {
       console.log("Generating image with prompt:", prompt);
-      
+
       const response = await fetch('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
         method: 'POST',
         headers: {
@@ -336,7 +352,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       const data = await response.json();
       // Stability API returns base64 encoded images
       const imageUrl = `data:image/png;base64,${data.artifacts[0].base64}`;
-      
+
       res.json({ 
         success: true,
         imageUrl,
