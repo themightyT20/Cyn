@@ -13,7 +13,7 @@ export async function registerRoutes(app: express.Express) {
   const router = Router();
 
   // Serve avatar image statically from public directory
-  router.use('/avatar.png', express.static(path.join(__dirname, '..', 'public', 'avatar.png')));
+  router.use('/cyn-avatar.png', express.static(path.join(__dirname, '..', 'public', 'cyn-avatar.png')));
 
   // Get all messages
   router.get("/api/messages", async (_req: Request, res: Response) => {
@@ -62,7 +62,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // Web search endpoint using DuckDuckGo via RapidAPI
+  // Web search endpoint using DuckDuckGo
   router.get("/api/search", async (req: Request, res: Response) => {
     const { query } = req.query;
 
@@ -71,13 +71,7 @@ export async function registerRoutes(app: express.Express) {
     }
 
     try {
-      const response = await fetch(`https://duckduckgo-duckduckgo-zero-click-info.p.rapidapi.com/?q=${encodeURIComponent(query)}&format=json`, {
-        method: 'GET',
-        headers: {
-          'X-RapidAPI-Key': process.env.RAPID_API_KEY as string,
-          'X-RapidAPI-Host': 'duckduckgo-duckduckgo-zero-click-info.p.rapidapi.com'
-        }
-      });
+      const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&pretty=1`);
 
       if (!response.ok) {
         throw new Error(`DuckDuckGo API returned ${response.status}`);
@@ -85,12 +79,19 @@ export async function registerRoutes(app: express.Express) {
 
       const data = await response.json();
 
-      // Transform DuckDuckGo results to match our frontend format
-      const results = data.RelatedTopics?.map((topic: any) => ({
-        title: topic.FirstURL || '',
-        snippet: topic.Text || '',
-        link: topic.FirstURL || ''
-      })) || [];
+      // Transform DuckDuckGo results
+      const results = [
+        ...(data.AbstractText ? [{
+          title: data.AbstractSource,
+          snippet: data.AbstractText,
+          link: data.AbstractURL
+        }] : []),
+        ...(data.RelatedTopics || []).map((topic: any) => ({
+          title: topic.FirstURL?.split('/').pop()?.replace(/-/g, ' ') || '',
+          snippet: topic.Text || '',
+          link: topic.FirstURL || ''
+        }))
+      ];
 
       res.json({ 
         success: true,
@@ -98,38 +99,6 @@ export async function registerRoutes(app: express.Express) {
       });
     } catch (error) {
       console.error("Error performing web search:", error);
-      res.status(500).json({ 
-        success: false, 
-        error: error instanceof Error ? error.message : "An unexpected error occurred" 
-      });
-    }
-  });
-
-  // YouTube search endpoint using RapidAPI
-  router.get("/api/youtube-search", async (req: Request, res: Response) => {
-    const { query } = req.query;
-
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({ message: "Search query is required" });
-    }
-
-    try {
-      const response = await fetch(`https://youtube-search-results.p.rapidapi.com/youtube-search/?q=${encodeURIComponent(query)}`, {
-        method: 'GET',
-        headers: {
-          'X-RapidAPI-Key': process.env.RAPID_API_KEY as string,
-          'X-RapidAPI-Host': 'youtube-search-results.p.rapidapi.com'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`RapidAPI returned ${response.status}`);
-      }
-
-      const data = await response.json();
-      res.json(data);
-    } catch (error) {
-      console.error("Error performing YouTube search:", error);
       res.status(500).json({ 
         success: false, 
         error: error instanceof Error ? error.message : "An unexpected error occurred" 

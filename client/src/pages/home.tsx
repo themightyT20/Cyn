@@ -47,6 +47,9 @@ export default function Home() {
     setIsSearching(true);
     try {
       const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`);
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.statusText}`);
+      }
       const data = await response.json();
       setSearchResults(data.results || []);
     } catch (error) {
@@ -61,11 +64,11 @@ export default function Home() {
       <div className="flex flex-col items-center pt-8 pb-4">
         <h1 className="text-5xl font-bold text-white mb-4">Cyn</h1>
         <div className="w-20 h-20 rounded-full overflow-hidden mb-4">
-          <div 
-            className="w-full h-full bg-gradient-to-br from-yellow-400 to-purple-600 flex items-center justify-center text-white text-2xl font-bold"
-          >
-            C
-          </div>
+          <img 
+            src="/cyn-avatar.png" 
+            alt="Cyn"
+            className="w-full h-full object-cover"
+          />
         </div>
       </div>
 
