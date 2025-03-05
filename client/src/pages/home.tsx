@@ -14,7 +14,7 @@ import { searchWeb } from "@/lib/api";
 const ImageGeneratorComponent = lazy(() => import("@/components/chat/image-generate").then(module => ({ default: module.ImageGeneratorComponent })));
 
 export default function Home() {
-  
+
   const [showWebSearch, setShowWebSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -52,6 +52,20 @@ export default function Home() {
       }
       const data = await response.json();
       setSearchResults(data.results || []);
+
+      // Send search results to chat
+      if (data.results && data.results.length > 0) {
+        const topResults = data.results.slice(0, 3);
+        const resultsText = topResults.map(r => 
+          `- ${r.title} (${r.source || 'Web'}):\n  ${r.description || r.snippet}`
+        ).join('\n\n');
+
+        messageMutation.mutate(
+          `Here are the top search results for "${searchQuery}":\n\n${resultsText}`
+        );
+      } else {
+        messageMutation.mutate(`No results found for "${searchQuery}"`);
+      }
     } catch (error) {
       console.error("Search error:", error);
     } finally {
@@ -100,7 +114,7 @@ export default function Home() {
         </div>
       </div>
 
-      
+
 
       {/* Web Search Dialog */}
       <Dialog open={showWebSearch} onOpenChange={setShowWebSearch}>
@@ -128,7 +142,7 @@ export default function Home() {
               {searchResults.map((result, index) => (
                 <div key={index} className="p-4 bg-[#3a3a3a] rounded-lg">
                   <h3 className="font-semibold mb-2">{result.title}</h3>
-                  <p className="text-gray-300">{result.snippet}</p>
+                  <p className="text-gray-300">{result.description || result.snippet}</p>
                   {result.link && (
                     <a 
                       href={result.link}

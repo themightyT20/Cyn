@@ -168,13 +168,21 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         ...(data.AbstractText ? [{
           title: data.AbstractSource || "Summary",
           snippet: data.AbstractText,
-          link: data.AbstractURL || ""
+          link: data.AbstractURL || "",
+          source: data.AbstractSource || "DuckDuckGo",
+          description: `Content from ${data.AbstractSource || "web"}: ${data.AbstractText?.substring(0, 120)}${data.AbstractText?.length > 120 ? '...' : ''}`
         }] : []),
-        ...(data.RelatedTopics || []).map((topic: any) => ({
-          title: topic.FirstURL?.split('/').pop()?.replace(/-/g, ' ') || topic.Name || 'Related Topic',
-          snippet: topic.Text || topic.Result?.replace(/<[^>]*>/g, '') || '',
-          link: topic.FirstURL || topic.Results?.[0]?.FirstURL || ''
-        }))
+        ...(data.RelatedTopics || []).map((topic: any) => {
+          const websiteName = topic.FirstURL ? new URL(topic.FirstURL).hostname.replace('www.', '') : 'DuckDuckGo';
+          const text = topic.Text || topic.Result?.replace(/<[^>]*>/g, '') || '';
+          return {
+            title: topic.FirstURL?.split('/').pop()?.replace(/-/g, ' ') || topic.Name || 'Related Topic',
+            snippet: text,
+            link: topic.FirstURL || topic.Results?.[0]?.FirstURL || '',
+            source: websiteName,
+            description: `From ${websiteName}: ${text.substring(0, 120)}${text.length > 120 ? '...' : ''}`
+          };
+        })
       ];
 
       // Also include Results if available (sometimes DuckDuckGo puts important info here)
@@ -212,7 +220,23 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
             const linkMatch = match.match(/href="([^"]*)/);
             const link = linkMatch ? linkMatch[1] : '';
             
-            return { title, snippet, link };
+            // Extract website name from link
+            let source = 'DuckDuckGo';
+            try {
+              if (link) {
+                source = new URL(link).hostname.replace('www.', '');
+              }
+            } catch (e) {
+              console.log('Could not parse URL:', link);
+            }
+            
+            return { 
+              title, 
+              snippet, 
+              link, 
+              source,
+              description: `From ${source}: ${snippet.substring(0, 120)}${snippet.length > 120 ? '...' : ''}`
+            };
           });
           
           results = fallbackResults;
@@ -237,7 +261,9 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         const backupResults = [{
           title: backupData.Heading || query,
           snippet: backupData.AbstractText || `Search results for ${query}`,
-          link: backupData.AbstractURL || `https://duckduckgo.com/?q=${encodeURIComponent(query)}`
+          link: backupData.AbstractURL || `https://duckduckgo.com/?q=${encodeURIComponent(query)}`,
+          source: backupData.AbstractSource || "DuckDuckGo",
+          description: `From ${backupData.AbstractSource || "DuckDuckGo"}: ${backupData.AbstractText || `Search results for ${query}`}`
         }];
         
         return res.json({
