@@ -154,6 +154,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     }
 
     try {
+      // First try DuckDuckGo API
       const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&pretty=1`);
 
       if (!response.ok) {
@@ -163,29 +164,94 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       const data = await response.json();
 
       // Transform DuckDuckGo results
-      const results = [
+      let results = [
         ...(data.AbstractText ? [{
-          title: data.AbstractSource,
+          title: data.AbstractSource || "Summary",
           snippet: data.AbstractText,
-          link: data.AbstractURL
+          link: data.AbstractURL || ""
         }] : []),
         ...(data.RelatedTopics || []).map((topic: any) => ({
-          title: topic.FirstURL?.split('/').pop()?.replace(/-/g, ' ') || '',
-          snippet: topic.Text || '',
-          link: topic.FirstURL || ''
+          title: topic.FirstURL?.split('/').pop()?.replace(/-/g, ' ') || topic.Name || 'Related Topic',
+          snippet: topic.Text || topic.Result?.replace(/<[^>]*>/g, '') || '',
+          link: topic.FirstURL || topic.Results?.[0]?.FirstURL || ''
         }))
       ];
 
+      // Also include Results if available (sometimes DuckDuckGo puts important info here)
+      if (data.Results && Array.isArray(data.Results) && data.Results.length > 0) {
+        const additionalResults = data.Results.map((result: any) => ({
+          title: result.FirstURL?.split('/').pop()?.replace(/-/g, ' ') || result.Name || 'Search Result',
+          snippet: result.Text || result.Result?.replace(/<[^>]*>/g, '') || '',
+          link: result.FirstURL || ''
+        }));
+        results = [...results, ...additionalResults];
+      }
+
+      // If we still have no results, try a fallback scraping approach
+      if (results.length === 0) {
+        console.log("No results from DuckDuckGo API, trying fallback...");
+        
+        // Using DuckDuckGo HTML search as fallback
+        const fallbackResponse = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
+        const html = await fallbackResponse.text();
+        
+        // Very basic extraction of results from HTML (a more robust solution would use a proper HTML parser)
+        const resultMatches = html.match(/<div class="result[^>]*>[\s\S]*?<\/div>/g);
+        
+        if (resultMatches && resultMatches.length > 0) {
+          const fallbackResults = resultMatches.slice(0, 5).map(match => {
+            // Extract title
+            const titleMatch = match.match(/<a class="result__a"[^>]*>(.*?)<\/a>/);
+            const title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, '') : 'Search Result';
+            
+            // Extract snippet
+            const snippetMatch = match.match(/<a class="result__snippet"[^>]*>(.*?)<\/a>/);
+            const snippet = snippetMatch ? snippetMatch[1].replace(/<[^>]*>/g, '') : '';
+            
+            // Extract link
+            const linkMatch = match.match(/href="([^"]*)/);
+            const link = linkMatch ? linkMatch[1] : '';
+            
+            return { title, snippet, link };
+          });
+          
+          results = fallbackResults;
+        }
+      }
+
       res.json({ 
         success: true,
-        results: results
+        results: results,
+        query: query // Include the query in response for debugging
       });
     } catch (error) {
       console.error("Error performing web search:", error);
-      res.status(500).json({ 
-        success: false, 
-        error: error instanceof Error ? error.message : "An unexpected error occurred" 
-      });
+      
+      // Try a simple backup search approach as last resort
+      try {
+        console.log("Attempting last resort search method");
+        const backupResponse = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`);
+        const backupData = await backupResponse.json();
+        
+        // Create a simple result even if just returning the query
+        const backupResults = [{
+          title: backupData.Heading || query,
+          snippet: backupData.AbstractText || `Search results for ${query}`,
+          link: backupData.AbstractURL || `https://duckduckgo.com/?q=${encodeURIComponent(query)}`
+        }];
+        
+        return res.json({
+          success: true,
+          results: backupResults,
+          isBackup: true
+        });
+      } catch (backupError) {
+        // If all else fails, return the error
+        return res.status(500).json({ 
+          success: false, 
+          error: error instanceof Error ? error.message : "An unexpected error occurred" 
+        });
+      }
     }
   });
 
