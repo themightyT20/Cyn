@@ -62,7 +62,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // Web search endpoint using RapidAPI
+  // Web search endpoint using DuckDuckGo via RapidAPI
   router.get("/api/search", async (req: Request, res: Response) => {
     const { query } = req.query;
 
@@ -71,20 +71,31 @@ export async function registerRoutes(app: express.Express) {
     }
 
     try {
-      const response = await fetch(`https://google-web-search1.p.rapidapi.com/?query=${encodeURIComponent(query)}&limit=10`, {
+      const response = await fetch(`https://duckduckgo-duckduckgo-zero-click-info.p.rapidapi.com/?q=${encodeURIComponent(query)}&format=json`, {
         method: 'GET',
         headers: {
           'X-RapidAPI-Key': process.env.RAPID_API_KEY as string,
-          'X-RapidAPI-Host': 'google-web-search1.p.rapidapi.com'
+          'X-RapidAPI-Host': 'duckduckgo-duckduckgo-zero-click-info.p.rapidapi.com'
         }
       });
 
       if (!response.ok) {
-        throw new Error(`RapidAPI returned ${response.status}`);
+        throw new Error(`DuckDuckGo API returned ${response.status}`);
       }
 
       const data = await response.json();
-      res.json(data);
+
+      // Transform DuckDuckGo results to match our frontend format
+      const results = data.RelatedTopics?.map((topic: any) => ({
+        title: topic.FirstURL || '',
+        snippet: topic.Text || '',
+        link: topic.FirstURL || ''
+      })) || [];
+
+      res.json({ 
+        success: true,
+        results: results
+      });
     } catch (error) {
       console.error("Error performing web search:", error);
       res.status(500).json({ 
