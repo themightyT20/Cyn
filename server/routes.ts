@@ -40,7 +40,7 @@ export async function registerRoutes(app: express.Express) {
         metadata: metadata || {}
       });
 
-      // Get AI response
+      // Get AI response using gemini-pro model
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
       const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
@@ -55,7 +55,7 @@ export async function registerRoutes(app: express.Express) {
         metadata: {}
       });
 
-      res.status(201).json(userMessage);
+      res.status(201).json([userMessage, aiMessage]);
     } catch (error) {
       console.error("Error processing message:", error);
       res.status(500).json({ message: "Error processing message" });
@@ -106,7 +106,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // Generate image endpoint using DeepAI
+  // Generate image endpoint
   router.post("/api/generate-image", async (req: Request, res: Response) => {
     const { prompt } = req.body;
 

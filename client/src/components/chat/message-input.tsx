@@ -34,7 +34,7 @@ export function MessageInput({ onSend, isLoading, onWebSearchClick, onTrainingDa
   };
 
   return (
-    <div className="relative flex gap-2">
+    <form onSubmit={handleSubmit} className="flex gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -67,25 +67,23 @@ export function MessageInput({ onSend, isLoading, onWebSearchClick, onTrainingDa
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <form onSubmit={handleSubmit} className="flex-1">
-        <div className="relative">
-          <Input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Message Cyn"
-            className="w-full bg-[#2a2a2a] border-0 text-white h-12 rounded-lg pr-12"
-            disabled={isLoading}
-          />
-          <Button
-            type="submit"
-            size="sm"
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-white bg-transparent hover:bg-transparent"
-            disabled={isLoading || !message.trim()}
-          >
-            ↑
-          </Button>
-        </div>
-      </form>
-    </div>
+      <div className="flex-1 relative">
+        <Input
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Message Cyn"
+          className="w-full bg-[#2a2a2a] border-0 text-white h-12 rounded-lg pr-12"
+          disabled={isLoading}
+        />
+        <Button
+          type="submit"
+          size="sm"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-white bg-transparent hover:bg-transparent"
+          disabled={isLoading || !message.trim()}
+        >
+          ↑
+        </Button>
+      </div>
+    </form>
   );
 }

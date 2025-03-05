@@ -11,21 +11,20 @@ import { Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { searchWeb } from "@/lib/api";
 
-const ImageGenerator = lazy(() => import("@/components/chat/image-generate").then(module => ({ default: module.ImageGeneratorComponent })));
+const ImageGeneratorComponent = lazy(() => import("@/components/chat/image-generate").then(module => ({ default: module.ImageGeneratorComponent })));
 
 export default function Home() {
   const [showTrainingData, setShowTrainingData] = useState(false);
   const [showWebSearch, setShowWebSearch] = useState(false);
-  const [showImageGenerator, setShowImageGenerator] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
-    refetchInterval: 1000,
+    refetchInterval: 1000, // Poll every second
     refetchOnWindowFocus: true,
-    staleTime: 0
+    staleTime: 0, // Consider data always stale to ensure fresh content
   });
 
   const messageMutation = useMutation({
@@ -59,13 +58,6 @@ export default function Home() {
       setIsSearching(false);
     }
   };
-
-  // Add event listener for image generator toggle
-  React.useEffect(() => {
-    const handleToggleImageGenerator = () => setShowImageGenerator(true);
-    window.addEventListener('toggle-image-generator', handleToggleImageGenerator);
-    return () => window.removeEventListener('toggle-image-generator', handleToggleImageGenerator);
-  }, []);
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] flex flex-col">
@@ -166,7 +158,7 @@ export default function Home() {
 
       {/* Image Generator Dialog */}
       <Suspense fallback={<div>Loading...</div>}>
-        {showImageGenerator && <ImageGenerator />}
+        <ImageGeneratorComponent />
       </Suspense>
     </div>
   );
