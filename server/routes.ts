@@ -42,8 +42,8 @@ export async function registerRoutes(app: express.Express) {
 
       // Get AI response using the correct Gemini model
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      // Use gemini-1.0-pro instead of gemini-pro
-      const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+      // Use gemini-1.5-pro-latest model
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
       console.log("Generating AI response for:", content);
       const result = await model.generateContent(content);
@@ -124,7 +124,7 @@ export async function registerRoutes(app: express.Express) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Api-Key': process.env.DEEP_AI_KEY || ''  // Changed from 'api-key' to 'Api-Key'
+          'Api-Key': process.env.DEEP_AI_KEY || ''
         },
         body: JSON.stringify({ text: prompt })
       });
