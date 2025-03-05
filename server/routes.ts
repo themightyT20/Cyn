@@ -5,6 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { storage } from "./storage";
 import { log } from "./vite";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,16 +13,18 @@ const __dirname = path.dirname(__filename);
 export async function registerRoutes(app: express.Express) {
   const router = Router();
 
-  // Serve avatar image statically from public directory
-  router.use('/cyn-avatar.png', express.static(path.join(__dirname, '..', 'public', 'cyn-avatar.png')));
-
   // Get all messages
   router.get("/api/messages", async (_req: Request, res: Response) => {
-    const messages = await storage.getMessages();
-    res.json(messages);
+    try {
+      const messages = await storage.getMessages();
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+      res.status(500).json({ message: "Error fetching messages" });
+    }
   });
 
-  // Add a new message
+  // Add a new message and get AI response
   router.post("/api/messages", async (req: Request, res: Response) => {
     const { content, role, metadata } = req.body;
 
@@ -30,35 +33,32 @@ export async function registerRoutes(app: express.Express) {
     }
 
     try {
-      const newMessage = await storage.addMessage({
+      // Save user message
+      const userMessage = await storage.addMessage({
         content,
         role: role || "user",
         metadata: metadata || {}
       });
-      res.status(201).json(newMessage);
-    } catch (error) {
-      console.error("Error adding message:", error);
-      res.status(500).json({ message: "Error adding message" });
-    }
-  });
 
-  // Add training data
-  router.post("/api/training", async (req: Request, res: Response) => {
-    const { content, category } = req.body;
+      // Get AI response
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-    if (!content || !category) {
-      return res.status(400).json({ message: "Content and category are required" });
-    }
+      console.log("Generating AI response for:", content);
+      const result = await model.generateContent(content);
+      const response = await result.response;
 
-    try {
-      const newTrainingData = await storage.addTrainingData({
-        content,
-        category
+      // Save AI response
+      const aiMessage = await storage.addMessage({
+        content: response.text(),
+        role: "assistant",
+        metadata: {}
       });
-      res.status(201).json(newTrainingData);
+
+      res.status(201).json(userMessage);
     } catch (error) {
-      console.error("Error adding training data:", error);
-      res.status(500).json({ message: "Error adding training data" });
+      console.error("Error processing message:", error);
+      res.status(500).json({ message: "Error processing message" });
     }
   });
 
@@ -118,6 +118,7 @@ export async function registerRoutes(app: express.Express) {
     }
 
     try {
+      console.log("Generating image with prompt:", prompt);
       const response = await fetch('https://api.deepai.org/api/text2img', {
         method: 'POST',
         headers: {

@@ -3,10 +3,18 @@ import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import net from "net";
+import { fileURLToPath } from "url";
+import path from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 const server = createServer(app);
 
@@ -66,6 +74,5 @@ const checkPortInUse = (port: number): Promise<boolean> => {
     });
   };
 
-  // Changed port from 3000 to 5000
   startServer(5000);
 })();
