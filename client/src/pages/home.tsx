@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { MessageInput } from "@/components/chat/message-input";
 import { TrainingDataUpload } from "@/components/chat/training-data-upload";
-import { Dialog } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -100,60 +100,57 @@ export default function Home() {
 
       {/* Training Data Dialog */}
       <Dialog open={showTrainingData} onOpenChange={setShowTrainingData}>
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center" onClick={() => setShowTrainingData(false)}>
-          <div className="bg-[#2a2a2a] p-6 rounded-lg w-full max-w-2xl mx-4" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-white mb-4">Upload Training Data</h2>
-            <TrainingDataUpload onClose={() => setShowTrainingData(false)} />
-          </div>
-        </div>
+        <DialogContent className="bg-[#2a2a2a] text-white border-gray-700 p-6">
+          <h2 className="text-2xl font-bold mb-4">Upload Training Data</h2>
+          <TrainingDataUpload onClose={() => setShowTrainingData(false)} />
+        </DialogContent>
       </Dialog>
 
       {/* Web Search Dialog */}
       <Dialog open={showWebSearch} onOpenChange={setShowWebSearch}>
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center" onClick={() => setShowWebSearch(false)}>
-          <div className="bg-[#2a2a2a] p-6 rounded-lg w-full max-w-2xl mx-4" onClick={e => e.stopPropagation()}>
-            <h2 className="text-2xl font-bold text-white mb-4">Web Search</h2>
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Enter your search query..."
-                  className="flex-1"
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                />
-                <Button 
-                  onClick={handleSearch}
-                  disabled={isSearching || !searchQuery.trim()}
-                >
-                  {isSearching ? "Searching..." : "Search"}
-                </Button>
-              </div>
+        <DialogContent className="bg-[#2a2a2a] text-white border-gray-700 p-6">
+          <h2 className="text-2xl font-bold mb-4">Web Search</h2>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Enter your search query..."
+                className="flex-1 bg-[#3a3a3a] border-0 text-white"
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              />
+              <Button 
+                onClick={handleSearch}
+                disabled={isSearching || !searchQuery.trim()}
+                className="bg-blue-600 text-white hover:bg-blue-700"
+              >
+                {isSearching ? "Searching..." : "Search"}
+              </Button>
+            </div>
 
-              <div className="text-white space-y-4 max-h-96 overflow-y-auto">
-                {searchResults.map((result, index) => (
-                  <div key={index} className="p-4 bg-[#3a3a3a] rounded-lg">
-                    <h3 className="font-semibold mb-2">{result.title}</h3>
-                    <p className="text-gray-300">{result.snippet}</p>
-                    {result.link && (
-                      <a 
-                        href={result.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300 text-sm mt-2 block"
-                      >
-                        Visit Link
-                      </a>
-                    )}
-                  </div>
-                ))}
-                {searchResults.length === 0 && !isSearching && searchQuery && (
-                  <p className="text-gray-400 text-center">No results found</p>
-                )}
-              </div>
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+              {searchResults.map((result, index) => (
+                <div key={index} className="p-4 bg-[#3a3a3a] rounded-lg">
+                  <h3 className="font-semibold mb-2">{result.title}</h3>
+                  <p className="text-gray-300">{result.snippet}</p>
+                  {result.link && (
+                    <a 
+                      href={result.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 text-sm mt-2 block"
+                    >
+                      Visit Link
+                    </a>
+                  )}
+                </div>
+              ))}
+              {searchResults.length === 0 && !isSearching && searchQuery && (
+                <p className="text-gray-400 text-center">No results found</p>
+              )}
             </div>
           </div>
-        </div>
+        </DialogContent>
       </Dialog>
     </div>
   );

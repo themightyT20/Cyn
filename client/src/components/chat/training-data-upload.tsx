@@ -41,25 +41,28 @@ export function TrainingDataUpload({ onClose }: TrainingDataUploadProps) {
           value={category}
           onChange={(e) => setCategory(e.target.value)}
           placeholder="Category"
-          className="mb-2"
+          className="mb-2 bg-[#3a3a3a] border-0 text-white"
         />
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Enter training data..."
           rows={10}
+          className="bg-[#3a3a3a] border-0 text-white resize-none"
         />
       </div>
-      <div className="flex gap-2 justify-end">
+      <div className="flex gap-2 justify-end mt-4">
         <Button 
           variant="outline"
           onClick={onClose}
+          className="bg-transparent text-white hover:bg-[#4a4a4a]"
         >
           Cancel
         </Button>
         <Button 
           onClick={() => mutation.mutate()}
           disabled={mutation.isPending || !content.trim() || !category.trim()}
+          className="bg-blue-600 text-white hover:bg-blue-700"
         >
           Upload Training Data
         </Button>
