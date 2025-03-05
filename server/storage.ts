@@ -5,17 +5,21 @@ export interface IStorage {
   addMessage(message: InsertMessage): Promise<Message>;
   getTrainingData(): Promise<TrainingData[]>;
   addTrainingData(data: InsertTrainingData): Promise<TrainingData>;
+  getMemory(): Promise<Record<string, any>>;
+  updateMemory(key: string, value: any): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
   private messages: Map<number, Message>;
   private trainingData: Map<number, TrainingData>;
+  private memory: Record<string, any>;
   private messageId: number;
   private trainingDataId: number;
 
   constructor() {
     this.messages = new Map();
     this.trainingData = new Map();
+    this.memory = {};
     this.messageId = 1;
     this.trainingDataId = 1;
   }
@@ -50,6 +54,14 @@ export class MemStorage implements IStorage {
     };
     this.trainingData.set(id, data);
     return data;
+  }
+
+  async getMemory(): Promise<Record<string, any>> {
+    return { ...this.memory };
+  }
+
+  async updateMemory(key: string, value: any): Promise<void> {
+    this.memory[key] = value;
   }
 }
 

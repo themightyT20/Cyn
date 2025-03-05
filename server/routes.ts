@@ -97,16 +97,43 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         }
       });
       
+      // Get the AI's memory
+      const memory = await storage.getMemory();
+      
+      // Include memory in the prompt if it exists
+      let memoryPrompt = "";
+      if (Object.keys(memory).length > 0) {
+        memoryPrompt = "\n\nHere's information you remember about the user:\n";
+        for (const [key, value] of Object.entries(memory)) {
+          memoryPrompt += `- ${key}: ${value}\n`;
+        }
+      }
+      
       // In Gemini API, we can't use a direct "role: system" parameter
       // Instead, we need to prepend the system prompt to the user's message
-      const promptWithSystem = `${systemPrompt}\n\nUser message: ${content}`;
+      const promptWithSystem = `${systemPrompt}${memoryPrompt}\n\nYou can remember new information about the user by including [MEMORY:key=value] anywhere in your response. This won't be shown to the user.\n\nUser message: ${content}`;
       const result = await chat.sendMessage(promptWithSystem);
       
       const response = await result.response;
+      
+      // Extract and process memory instructions from the response
+      let responseText = response.text();
+      const memoryRegex = /\[MEMORY:([^=]+)=([^\]]+)\]/g;
+      let match;
+      
+      while ((match = memoryRegex.exec(responseText)) !== null) {
+        const key = match[1].trim();
+        const value = match[2].trim();
+        await storage.updateMemory(key, value);
+        console.log(`Memory updated: ${key} = ${value}`);
+      }
+      
+      // Remove memory instructions from the final response
+      responseText = responseText.replace(memoryRegex, "");
 
-      // Save AI response
+      // Save AI response (without memory instructions)
       const aiMessage = await storage.addMessage({
-        content: response.text(),
+        content: responseText.trim(),
         role: "assistant",
         metadata: {}
       });
@@ -228,6 +255,49 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         success: false, 
         error: error instanceof Error ? error.message : "An unexpected error occurred" 
       });
+    }
+  });
+
+  // Get AI memory
+  router.get("/api/memory", async (_req: Request, res: Response) => {
+    try {
+      const memory = await storage.getMemory();
+      res.json(memory);
+    } catch (error) {
+      console.error("Error fetching memory:", error);
+      res.status(500).json({ message: "Error fetching memory" });
+    }
+  });
+
+  // Update AI memory
+  router.post("/api/memory", async (req: Request, res: Response) => {
+    const { key, value } = req.body;
+
+    if (!key) {
+      return res.status(400).json({ message: "Key is required" });
+    }
+
+    try {
+      await storage.updateMemory(key, value);
+      const memory = await storage.getMemory();
+      res.json(memory);
+    } catch (error) {
+      console.error("Error updating memory:", error);
+      res.status(500).json({ message: "Error updating memory" });
+    }
+  });
+
+  // Clear specific memory key
+  router.delete("/api/memory/:key", async (req: Request, res: Response) => {
+    const { key } = req.params;
+
+    try {
+      await storage.updateMemory(key, null);
+      const memory = await storage.getMemory();
+      res.json(memory);
+    } catch (error) {
+      console.error("Error clearing memory:", error);
+      res.status(500).json({ message: "Error clearing memory" });
     }
   });
 
