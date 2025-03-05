@@ -4,6 +4,8 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import { MessageInput } from "@/components/chat/message-input";
 import { TrainingDataUpload } from "@/components/chat/training-data-upload";
 import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -14,6 +16,9 @@ const ImageGenerator = lazy(() => import("@/components/chat/image-generate").the
 export default function Home() {
   const [showTrainingData, setShowTrainingData] = useState(false);
   const [showWebSearch, setShowWebSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const { data: messages = [], isLoading } = useQuery<Message[]>({
     queryKey: ["/api/messages"],
@@ -36,16 +41,31 @@ export default function Home() {
     }
   });
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/search?query=${encodeURIComponent(searchQuery)}`);
+      const data = await response.json();
+      setSearchResults(data.results || []);
+    } catch (error) {
+      console.error("Search error:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#1a1a1a] flex flex-col">
       <div className="flex flex-col items-center pt-8 pb-4">
         <h1 className="text-5xl font-bold text-white mb-4">Cyn</h1>
         <div className="w-20 h-20 rounded-full overflow-hidden mb-4">
-          <img 
-            src="/avatar.png" 
-            alt="Cyn"
-            className="w-full h-full object-cover border-2 border-yellow-400 glow-effect"
-          />
+          <div 
+            className="w-full h-full bg-gradient-to-br from-yellow-400 to-purple-600 flex items-center justify-center text-white text-2xl font-bold"
+          >
+            C
+          </div>
         </div>
       </div>
 
@@ -93,8 +113,44 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center" onClick={() => setShowWebSearch(false)}>
           <div className="bg-[#2a2a2a] p-6 rounded-lg w-full max-w-2xl mx-4" onClick={e => e.stopPropagation()}>
             <h2 className="text-2xl font-bold text-white mb-4">Web Search</h2>
-            <div className="text-white">
-              Web search functionality coming soon...
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Enter your search query..."
+                  className="flex-1"
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <Button 
+                  onClick={handleSearch}
+                  disabled={isSearching || !searchQuery.trim()}
+                >
+                  {isSearching ? "Searching..." : "Search"}
+                </Button>
+              </div>
+
+              <div className="text-white space-y-4 max-h-96 overflow-y-auto">
+                {searchResults.map((result, index) => (
+                  <div key={index} className="p-4 bg-[#3a3a3a] rounded-lg">
+                    <h3 className="font-semibold mb-2">{result.title}</h3>
+                    <p className="text-gray-300">{result.snippet}</p>
+                    {result.link && (
+                      <a 
+                        href={result.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:text-blue-300 text-sm mt-2 block"
+                      >
+                        Visit Link
+                      </a>
+                    )}
+                  </div>
+                ))}
+                {searchResults.length === 0 && !isSearching && searchQuery && (
+                  <p className="text-gray-400 text-center">No results found</p>
+                )}
+              </div>
             </div>
           </div>
         </div>

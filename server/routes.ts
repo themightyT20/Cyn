@@ -6,7 +6,6 @@ import { fileURLToPath } from "url";
 import { storage } from "./storage";
 import { log } from "./vite";
 
-// Convert URL to file path for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -63,7 +62,7 @@ export async function registerRoutes(app: express.Express) {
     }
   });
 
-  // Web search endpoint
+  // Web search endpoint using RapidAPI
   router.get("/api/search", async (req: Request, res: Response) => {
     const { query } = req.query;
 
@@ -72,26 +71,62 @@ export async function registerRoutes(app: express.Express) {
     }
 
     try {
-      // For now, return a mock response
-      const mockResults = {
-        query,
-        results: [
-          { title: "Sample result 1", snippet: "This is a sample search result" },
-          { title: "Sample result 2", snippet: "Another sample search result" }
-        ]
-      };
+      const response = await fetch(`https://google-web-search1.p.rapidapi.com/?query=${encodeURIComponent(query)}&limit=10`, {
+        method: 'GET',
+        headers: {
+          'X-RapidAPI-Key': process.env.RAPID_API_KEY as string,
+          'X-RapidAPI-Host': 'google-web-search1.p.rapidapi.com'
+        }
+      });
 
-      res.json(mockResults);
-    } catch (error) {
-      if (error instanceof Error) {
-        res.status(500).json({ message: error.message });
-      } else {
-        res.status(500).json({ message: "An unexpected error occurred" });
+      if (!response.ok) {
+        throw new Error(`RapidAPI returned ${response.status}`);
       }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error performing web search:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "An unexpected error occurred" 
+      });
     }
   });
 
-  // Generate image endpoint
+  // YouTube search endpoint using RapidAPI
+  router.get("/api/youtube-search", async (req: Request, res: Response) => {
+    const { query } = req.query;
+
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    try {
+      const response = await fetch(`https://youtube-search-results.p.rapidapi.com/youtube-search/?q=${encodeURIComponent(query)}`, {
+        method: 'GET',
+        headers: {
+          'X-RapidAPI-Key': process.env.RAPID_API_KEY as string,
+          'X-RapidAPI-Host': 'youtube-search-results.p.rapidapi.com'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`RapidAPI returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error performing YouTube search:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "An unexpected error occurred" 
+      });
+    }
+  });
+
+  // Generate image endpoint using DeepAI
   router.post("/api/generate-image", async (req: Request, res: Response) => {
     const { prompt } = req.body;
 
@@ -102,40 +137,25 @@ export async function registerRoutes(app: express.Express) {
       });
     }
 
-    const description = prompt.substring(0, 50) + "...";
-
     try {
-      // Use Hugging Face's public model for image generation
-      const payload = {
-        inputs: prompt,
-        options: {
-          wait_for_model: true
-        }
-      };
-
-      const options = {
+      const response = await fetch('https://api.deepai.org/api/text2img', {
         method: 'POST',
         headers: {
+          'api-key': process.env.DEEP_AI_KEY as string,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
-      };
+        body: JSON.stringify({ text: prompt })
+      });
 
-      const imageResponse = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0', options);
-
-      if (!imageResponse.ok) {
-        throw new Error(`Hugging Face API returned ${imageResponse.status}`);
+      if (!response.ok) {
+        throw new Error(`DeepAI API returned ${response.status}`);
       }
 
-      const imageBuffer = await imageResponse.arrayBuffer();
-      const base64Image = Buffer.from(imageBuffer).toString('base64');
-      const imageUrl = `data:image/jpeg;base64,${base64Image}`;
-
+      const data = await response.json();
       res.json({ 
         success: true,
-        imageUrl: imageUrl,
-        description: description,
-        message: "Image generated successfully with Hugging Face Stable Diffusion"
+        imageUrl: data.output_url,
+        message: "Image generated successfully"
       });
     } catch (error) {
       console.error("Error generating image:", error);
