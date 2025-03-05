@@ -3,36 +3,22 @@ import { nanoid } from "nanoid";
 import { existsSync, promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Server } from "http";
+import { storage } from "./storage";
 import { log } from "./vite";
 
 // Convert URL to file path for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load/Create messages storage
-const messagesPath = path.join(__dirname, "..", "messages.json");
-const messages: any[] = [];
-
-async function loadMessages() {
-  if (existsSync(messagesPath)) {
-    const data = await fs.readFile(messagesPath, "utf8");
-    messages.push(...JSON.parse(data));
-  }
-}
-
-async function saveMessages() {
-  await fs.writeFile(messagesPath, JSON.stringify(messages, null, 2));
-}
-
-// Initialize messages
-loadMessages();
-
 export async function registerRoutes(app: express.Express) {
   const router = Router();
 
+  // Serve avatar image statically from public directory
+  router.use('/avatar.png', express.static(path.join(__dirname, '..', 'public', 'avatar.png')));
+
   // Get all messages
-  router.get("/api/messages", (_req: Request, res: Response) => {
+  router.get("/api/messages", async (_req: Request, res: Response) => {
+    const messages = await storage.getMessages();
     res.json(messages);
   });
 
@@ -44,18 +30,65 @@ export async function registerRoutes(app: express.Express) {
       return res.status(400).json({ message: "Content is required" });
     }
 
-    const newMessage = {
-      id: nanoid(),
-      content,
-      role: role || "user",
-      metadata: metadata || {},
-      timestamp: new Date().toISOString(),
-    };
+    try {
+      const newMessage = await storage.addMessage({
+        content,
+        role: role || "user",
+        metadata: metadata || {}
+      });
+      res.status(201).json(newMessage);
+    } catch (error) {
+      console.error("Error adding message:", error);
+      res.status(500).json({ message: "Error adding message" });
+    }
+  });
 
-    messages.push(newMessage);
-    await saveMessages();
+  // Add training data
+  router.post("/api/training", async (req: Request, res: Response) => {
+    const { content, category } = req.body;
 
-    res.status(201).json(newMessage);
+    if (!content || !category) {
+      return res.status(400).json({ message: "Content and category are required" });
+    }
+
+    try {
+      const newTrainingData = await storage.addTrainingData({
+        content,
+        category
+      });
+      res.status(201).json(newTrainingData);
+    } catch (error) {
+      console.error("Error adding training data:", error);
+      res.status(500).json({ message: "Error adding training data" });
+    }
+  });
+
+  // Web search endpoint
+  router.get("/api/search", async (req: Request, res: Response) => {
+    const { query } = req.query;
+
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+
+    try {
+      // For now, return a mock response
+      const mockResults = {
+        query,
+        results: [
+          { title: "Sample result 1", snippet: "This is a sample search result" },
+          { title: "Sample result 2", snippet: "Another sample search result" }
+        ]
+      };
+
+      res.json(mockResults);
+    } catch (error) {
+      if (error instanceof Error) {
+        res.status(500).json({ message: error.message });
+      } else {
+        res.status(500).json({ message: "An unexpected error occurred" });
+      }
+    }
   });
 
   // Generate image endpoint
@@ -73,10 +106,6 @@ export async function registerRoutes(app: express.Express) {
 
     try {
       // Use Hugging Face's public model for image generation
-      // This doesn't require an API key for basic usage
-      log("Using Hugging Face's text-to-image model");
-
-      // Create a payload for the Hugging Face API
       const payload = {
         inputs: prompt,
         options: {
@@ -92,15 +121,12 @@ export async function registerRoutes(app: express.Express) {
         body: JSON.stringify(payload)
       };
 
-      // Using a public model from Hugging Face
       const imageResponse = await fetch('https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0', options);
 
       if (!imageResponse.ok) {
         throw new Error(`Hugging Face API returned ${imageResponse.status}`);
       }
 
-      // For Hugging Face, the response is the image blob directly
-      // We need to create a base64 data URL from it
       const imageBuffer = await imageResponse.arrayBuffer();
       const base64Image = Buffer.from(imageBuffer).toString('base64');
       const imageUrl = `data:image/jpeg;base64,${base64Image}`;
@@ -113,11 +139,13 @@ export async function registerRoutes(app: express.Express) {
       });
     } catch (error) {
       console.error("Error generating image:", error);
-      res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "An unexpected error occurred" 
+      });
     }
   });
 
   app.use(router);
-
   return app.listen();
 }

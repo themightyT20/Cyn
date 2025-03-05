@@ -6,7 +6,11 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-export function TrainingDataUpload() {
+interface TrainingDataUploadProps {
+  onClose?: () => void;
+}
+
+export function TrainingDataUpload({ onClose }: TrainingDataUploadProps) {
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("");
   const { toast } = useToast();
@@ -26,6 +30,7 @@ export function TrainingDataUpload() {
       });
       setContent("");
       setCategory("");
+      onClose?.();
     }
   });
 
@@ -45,12 +50,20 @@ export function TrainingDataUpload() {
           rows={10}
         />
       </div>
-      <Button 
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending || !content.trim() || !category.trim()}
-      >
-        Upload Training Data
-      </Button>
+      <div className="flex gap-2 justify-end">
+        <Button 
+          variant="outline"
+          onClick={onClose}
+        >
+          Cancel
+        </Button>
+        <Button 
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending || !content.trim() || !category.trim()}
+        >
+          Upload Training Data
+        </Button>
+      </div>
     </div>
   );
 }

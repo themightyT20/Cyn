@@ -8,15 +8,15 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-const server = createServer(app); // ✅ Ensure server is properly created
+const server = createServer(app);
 
-// ✅ Debugging Middleware (Check if requests reach here)
+// Debugging Middleware
 app.use((req, res, next) => {
   console.log(`🟢 Received request: ${req.method} ${req.url}`);
   next();
 });
 
-// ✅ Simple Debugging Route (Test if Express is working)
+// Simple Debugging Route
 app.get("/test", (req, res) => {
   console.log("🟢 /test route hit!");
   res.json({ message: "Server is working!" });
@@ -62,9 +62,10 @@ const checkPortInUse = (port: number): Promise<boolean> => {
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`✅ Server running on port ${port}`);
-      log(`✅ Server running on port ${port}`); // ✅ Ensure log is triggered
+      log(`✅ Server running on port ${port}`);
     });
   };
 
-  startServer(3000);
+  // Changed port from 3000 to 5000
+  startServer(5000);
 })();
