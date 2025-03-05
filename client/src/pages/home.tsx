@@ -2,7 +2,7 @@ import React, { useState, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { MessageInput } from "@/components/chat/message-input";
-import { TrainingDataUpload } from "@/components/chat/training-data-upload";
+
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { searchWeb } from "@/lib/api";
 const ImageGeneratorComponent = lazy(() => import("@/components/chat/image-generate").then(module => ({ default: module.ImageGeneratorComponent })));
 
 export default function Home() {
-  const [showTrainingData, setShowTrainingData] = useState(false);
+  
   const [showWebSearch, setShowWebSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -96,18 +96,11 @@ export default function Home() {
             onSend={(content) => messageMutation.mutate(content)}
             isLoading={messageMutation.isPending}
             onWebSearchClick={() => setShowWebSearch(true)}
-            onTrainingDataClick={() => setShowTrainingData(true)}
           />
         </div>
       </div>
 
-      {/* Training Data Dialog */}
-      <Dialog open={showTrainingData} onOpenChange={setShowTrainingData}>
-        <DialogContent className="bg-[#2a2a2a] text-white border-gray-700 p-6">
-          <h2 className="text-2xl font-bold mb-4">Upload Training Data</h2>
-          <TrainingDataUpload onClose={() => setShowTrainingData(false)} />
-        </DialogContent>
-      </Dialog>
+      
 
       {/* Web Search Dialog */}
       <Dialog open={showWebSearch} onOpenChange={setShowWebSearch}>

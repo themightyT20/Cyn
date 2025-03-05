@@ -13,10 +13,9 @@ interface MessageInputProps {
   onSend: (content: string) => void;
   isLoading?: boolean;
   onWebSearchClick?: () => void;
-  onTrainingDataClick?: () => void;
 }
 
-export function MessageInput({ onSend, isLoading, onWebSearchClick, onTrainingDataClick }: MessageInputProps) {
+export function MessageInput({ onSend, isLoading, onWebSearchClick }: MessageInputProps) {
   const [message, setMessage] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -57,12 +56,6 @@ export function MessageInput({ onSend, isLoading, onWebSearchClick, onTrainingDa
             onClick={onWebSearchClick}
           >
             Web Search
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="hover:bg-[#3a3a3a]"
-            onClick={onTrainingDataClick}
-          >
-            Training Data
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
