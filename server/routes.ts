@@ -97,10 +97,10 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         }
       });
       
-      const result = await chat.sendMessage([
-        { text: systemPrompt, role: "system" },
-        { text: content }
-      ]);
+      // In Gemini API, we can't use a direct "role: system" parameter
+      // Instead, we need to prepend the system prompt to the user's message
+      const promptWithSystem = `${systemPrompt}\n\nUser message: ${content}`;
+      const result = await chat.sendMessage(promptWithSystem);
       
       const response = await result.response;
 
