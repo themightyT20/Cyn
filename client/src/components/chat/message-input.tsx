@@ -27,6 +27,12 @@ export function MessageInput({ onSend, isLoading, onWebSearchClick, onTrainingDa
     }
   };
 
+  const handleImageGenerate = () => {
+    // Dispatch the custom event to show the image generator
+    const event = new CustomEvent('toggle-image-generator');
+    window.dispatchEvent(event);
+  };
+
   return (
     <div className="relative flex gap-2">
       <DropdownMenu>
@@ -41,8 +47,8 @@ export function MessageInput({ onSend, isLoading, onWebSearchClick, onTrainingDa
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-48 bg-[#2a2a2a] text-white border-gray-700">
           <DropdownMenuItem 
-            className="hover:bg-[#3a3a3a]" 
-            onClick={() => window.dispatchEvent(new CustomEvent('toggle-image-generator'))}
+            className="hover:bg-[#3a3a3a]"
+            onClick={handleImageGenerate}
           >
             Image Generation
           </DropdownMenuItem>

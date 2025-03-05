@@ -16,6 +16,7 @@ const ImageGenerator = lazy(() => import("@/components/chat/image-generate").the
 export default function Home() {
   const [showTrainingData, setShowTrainingData] = useState(false);
   const [showWebSearch, setShowWebSearch] = useState(false);
+  const [showImageGenerator, setShowImageGenerator] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -58,6 +59,13 @@ export default function Home() {
       setIsSearching(false);
     }
   };
+
+  // Add event listener for image generator toggle
+  React.useEffect(() => {
+    const handleToggleImageGenerator = () => setShowImageGenerator(true);
+    window.addEventListener('toggle-image-generator', handleToggleImageGenerator);
+    return () => window.removeEventListener('toggle-image-generator', handleToggleImageGenerator);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] flex flex-col">
@@ -155,6 +163,11 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Image Generator Dialog */}
+      <Suspense fallback={<div>Loading...</div>}>
+        {showImageGenerator && <ImageGenerator />}
+      </Suspense>
     </div>
   );
 }
