@@ -110,7 +110,7 @@ export async function registerRoutes(app: express.Express) {
   // Generate image endpoint
   router.post("/api/generate-image", async (req: Request, res: Response) => {
     const { prompt } = req.body;
-    const apiKey = process.env.DEEP_AI_KEY;
+    const apiKey = process.env.STABILITY_API_KEY;
 
     if (!prompt) {
       return res.status(400).json({ 
@@ -120,7 +120,7 @@ export async function registerRoutes(app: express.Express) {
     }
 
     if (!apiKey) {
-      console.error("DeepAI API key is missing");
+      console.error("Stability API key is missing");
       return res.status(500).json({
         success: false,
         error: "API key configuration is missing"
@@ -130,28 +130,41 @@ export async function registerRoutes(app: express.Express) {
     try {
       console.log("Generating image with prompt:", prompt);
       
-      // Use FormData instead of JSON for DeepAI API
-      const formData = new FormData();
-      formData.append('text', prompt);
-      
-      const response = await fetch('https://api.deepai.org/api/text2img', {
+      const response = await fetch('https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image', {
         method: 'POST',
         headers: {
-          'Api-Key': apiKey
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
         },
-        body: formData
+        body: JSON.stringify({
+          text_prompts: [
+            {
+              text: prompt,
+              weight: 1.0
+            }
+          ],
+          cfg_scale: 7,
+          height: 1024,
+          width: 1024,
+          samples: 1,
+          steps: 30
+        })
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`DeepAI API error (${response.status}):`, errorText);
-        throw new Error(`DeepAI API returned ${response.status}: ${errorText}`);
+        const errorData = await response.json();
+        console.error(`Stability API error (${response.status}):`, errorData);
+        throw new Error(`Stability API returned ${response.status}: ${JSON.stringify(errorData)}`);
       }
 
       const data = await response.json();
+      // Stability API returns base64 encoded images
+      const imageUrl = `data:image/png;base64,${data.artifacts[0].base64}`;
+      
       res.json({ 
         success: true,
-        imageUrl: data.output_url,
+        imageUrl,
         message: "Image generated successfully"
       });
     } catch (error) {
