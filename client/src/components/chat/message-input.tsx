@@ -55,7 +55,7 @@ export function MessageInput({ onSend, isLoading, onWebSearchClick }: MessageInp
             className="hover:bg-[#3a3a3a]"
             onClick={onWebSearchClick}
           >
-            Web Search
+            Web Search (DuckDuckGo)
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

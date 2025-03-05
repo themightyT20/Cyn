@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { MessageInput } from "@/components/chat/message-input";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -52,20 +52,8 @@ export default function Home() {
       }
       const data = await response.json();
       setSearchResults(data.results || []);
-
-      // Send search results to chat
-      if (data.results && data.results.length > 0) {
-        const topResults = data.results.slice(0, 3);
-        const resultsText = topResults.map(r => 
-          `- ${r.title} (${r.source || 'Web'}):\n  ${r.description || r.snippet}`
-        ).join('\n\n');
-
-        messageMutation.mutate(
-          `Here are the top search results for "${searchQuery}":\n\n${resultsText}`
-        );
-      } else {
-        messageMutation.mutate(`No results found for "${searchQuery}"`);
-      }
+      
+      // Don't automatically send to chat anymore
     } catch (error) {
       console.error("Search error:", error);
     } finally {
@@ -119,7 +107,7 @@ export default function Home() {
       {/* Web Search Dialog */}
       <Dialog open={showWebSearch} onOpenChange={setShowWebSearch}>
         <DialogContent className="bg-[#2a2a2a] text-white border-gray-700 p-6">
-          <h2 className="text-2xl font-bold mb-4">Web Search</h2>
+          <DialogTitle className="text-2xl font-bold mb-4">Web Search</DialogTitle>
           <div className="space-y-4">
             <div className="flex gap-2">
               <Input
@@ -137,6 +125,55 @@ export default function Home() {
                 {isSearching ? "Searching..." : "Search"}
               </Button>
             </div>
+            
+            {/* Search Results Display */}
+            {searchResults.length > 0 && (
+              <div className="mt-4 space-y-4">
+                <h3 className="text-xl font-medium">Results from DuckDuckGo:</h3>
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  {searchResults.map((result, index) => (
+                    <div key={index} className="p-3 bg-[#333] rounded-md">
+                      <h4 className="font-bold">{result.title}</h4>
+                      {result.source && <p className="text-sm text-blue-400 mt-1">Source: {result.source}</p>}
+                      <p className="mt-2 text-sm">{result.description || result.snippet || "No description available"}</p>
+                      {result.link && (
+                        <a 
+                          href={result.link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-400 text-sm block mt-2 hover:underline"
+                        >
+                          Visit Page →
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  onClick={() => {
+                    const topResults = searchResults.slice(0, 3);
+                    const resultsText = topResults.map(r => 
+                      `- ${r.title} (${r.source || 'DuckDuckGo'}):\n  ${r.description || r.snippet || "No description available"}`
+                    ).join('\n\n');
+                    
+                    messageMutation.mutate(
+                      `Here are the top search results for "${searchQuery}":\n\n${resultsText}`
+                    );
+                    setShowWebSearch(false);
+                  }}
+                  className="bg-green-600 text-white hover:bg-green-700 mt-2"
+                >
+                  Send Results to Chat
+                </Button>
+              </div>
+            )}
+            
+            {searchResults.length === 0 && !isSearching && searchQuery.trim() && (
+              <div className="mt-4 p-3 bg-[#333] rounded-md">
+                <p>No results found for "{searchQuery}".</p>
+                <p className="text-sm mt-2">Try different keywords or check your spelling.</p>
+              </div>
+            )}
 
             <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
               {searchResults.map((result, index) => (

@@ -246,7 +246,8 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       res.json({ 
         success: true,
         results: results,
-        query: query // Include the query in response for debugging
+        query: query, // Include the query in response for debugging
+        source: "DuckDuckGo" // Add source information
       });
     } catch (error) {
       console.error("Error performing web search:", error);
