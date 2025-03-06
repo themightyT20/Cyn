@@ -47,7 +47,7 @@ export async function registerRoutes(app: express.Express) {
 
       const files = await fs.readdir(TRAINING_DATA_DIR);
       const voiceFiles = files.filter(file => file.endsWith('.wav') && !file.endsWith('_original.wav.bak'));
-      
+
       // Get file sizes
       const fileSizes = {};
       const fileInfo = [];
@@ -56,14 +56,14 @@ export async function registerRoutes(app: express.Express) {
           const filePath = path.join(TRAINING_DATA_DIR, file);
           const stats = await fs.stat(filePath);
           const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
-          
+
           fileInfo.push({
             file,
             size: fileSizeMB + ' MB',
             path: filePath,
             isChunk: file.includes('_chunk_')
           });
-          
+
           fileSizes[file] = {
             size: stats.size,
             sizeInMB: fileSizeMB,
@@ -75,7 +75,7 @@ export async function registerRoutes(app: express.Express) {
       }
 
       console.log(`Found ${voiceFiles.length} voice samples in ${TRAINING_DATA_DIR}`);
-      
+
       res.json({
         success: true,
         samples: voiceFiles,
@@ -103,9 +103,9 @@ export async function registerRoutes(app: express.Express) {
         TRAINING_DATA_DIR,
         path.join(__dirname, '..', 'uploads', 'voice-samples')
       ];
-      
+
       const results = {};
-      
+
       for (const dir of directories) {
         try {
           const exists = await fs.access(dir).then(() => true).catch(() => false);
@@ -124,7 +124,7 @@ export async function registerRoutes(app: express.Express) {
           results[dir] = { exists: false, error: String(err) };
         }
       }
-      
+
       res.json({
         success: true,
         diagnosticResults: results,
@@ -301,13 +301,13 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
   router.post("/api/tts/split-samples", async (_req: Request, res: Response) => {
     try {
       console.log("Received request to split voice samples");
-      
+
       // Import the splitter function dynamically to avoid circular dependencies
       const { splitLargeVoiceSamples } = await import('./voice-sample-splitter');
-      
+
       console.log("Running voice sample splitter...");
       const result = await splitLargeVoiceSamples();
-      
+
       if (result.success) {
         console.log(`Successfully processed ${result.processed?.length || 0} voice samples`);
         res.json({
@@ -332,22 +332,26 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       });
     }
   });
-  
+
   // Voice-based text-to-speech endpoint
   router.post("/api/tts/speak", async (req: Request, res: Response) => {
+    // Set content type to ensure proper response format
+    res.setHeader('Content-Type', 'application/json');
+
     try {
       const { text, voiceSample } = req.body;
-      
-      if (!text || !voiceSample) {
-        return res.status(400).json({
-          success: false,
-          message: "Text and voice sample are required"
-        });
+
+      if (!text) {
+        return res.status(400).json({ success: false, message: "No text provided" });
       }
-      
+
+      if (!voiceSample) {
+        return res.status(400).json({ success: false, message: "No voice sample selected" });
+      }
+
       // Get the path to the voice sample
       const samplePath = path.join(TRAINING_DATA_DIR, voiceSample);
-      
+
       // Check if the sample exists
       try {
         await fs.access(samplePath);
@@ -357,17 +361,17 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           message: `Voice sample ${voiceSample} not found`
         });
       }
-      
+
       // Use Google Cloud TTS as a fallback (simulated here)
       // In a real implementation, you would call the Google Cloud TTS API or another TTS service
       // Here we're simulating the API by just using the sample file directly
       console.log(`Processing TTS request for text: "${text}" using sample: ${voiceSample}`);
-      
+
       try {
         // For a simple demo, we'll just use the selected voice sample as the output
         // In a real implementation, this would send the text to a TTS service
         // and return the generated audio
-        
+
         return res.json({
           success: true,
           message: "Text processed using server-side TTS",
@@ -403,7 +407,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
   router.get("/api/tts/analyze", async (_req: Request, res: Response) => {
     try {
       const TRAINING_DATA_DIR = path.join(__dirname, '..', 'training-data', 'voice-samples');
-      
+
       // Check if directory exists
       let directoryExists = false;
       try {
@@ -422,7 +426,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
 
       const files = await fs.readdir(TRAINING_DATA_DIR);
       const voiceFiles = files.filter(file => file.endsWith('.wav'));
-      
+
       // Get file info
       const fileInfo = [];
       for (const file of voiceFiles) {
@@ -430,7 +434,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           const filePath = path.join(TRAINING_DATA_DIR, file);
           const stats = await fs.stat(filePath);
           const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
-          
+
           // Use ffprobe to get duration if available
           let duration = "Unknown";
           try {
@@ -442,7 +446,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           } catch (e) {
             console.error(`Could not determine duration for ${file}:`, e);
           }
-          
+
           fileInfo.push({
             file,
             size: `${fileSizeMB} MB`,
@@ -455,7 +459,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           console.error(`Error analyzing ${file}:`, err);
         }
       }
-      
+
       res.json({
         success: true,
         files: fileInfo,
@@ -465,7 +469,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         originals: fileInfo.filter(f => f.isOriginal).length,
         unprocessed: fileInfo.filter(f => !f.isChunk && !f.isOriginal).length
       });
-      
+
     } catch (error) {
       console.error("Error analyzing voice samples:", error);
       res.status(500).json({ 
