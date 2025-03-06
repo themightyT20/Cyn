@@ -1,189 +1,55 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Volume2, AlertCircle, RefreshCw, Loader } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 interface TTSButtonProps {
-  text?: string;
+  text: string;
+  className?: string;
 }
 
-const TTSButton = ({ text }: TTSButtonProps) => {
-  const [speaking, setSpeaking] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [ttsError, setTtsError] = useState<string | null>(null);
-  const [hasCheckedVoices, setHasCheckedVoices] = useState(false);
+export function TTSButton({ text, className }: TTSButtonProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [voiceSamples, setVoiceSamples] = useState<string[]>([]);
-  const [selectedVoiceSample, setSelectedVoiceSample] = useState<string | null>(null);
+  const [selectedVoiceSample, setSelectedVoiceSample] = useState<string>("");
+  const [ttsError, setTtsError] = useState<string | null>(null);
   const [isCheckingVoices, setIsCheckingVoices] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
-  const [useBrowserTTS, setUseBrowserTTS] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
-  // References
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const audioPlayerRef = useRef<{
-    play: (text: string, playTime: number) => Promise<void>,
-    stop: () => void,
-    isPaused: boolean,
-    togglePause: () => void
-  } | null>(null);
+  // Create audio element on component mount
+  useEffect(() => {
+    audioRef.current = new Audio();
 
-  // Check if speech synthesis is available
-  const isSpeechAvailable = typeof window !== 'undefined' && 'speechSynthesis' in window;
-
-  // Initialize custom audio player that uses voice samples to simulate speaking
-  const initializeCustomPlayer = () => {
-    if (audioPlayerRef.current) return;
-
-    audioPlayerRef.current = {
-      isPaused: false,
-
-      async play(text: string, playTime: number) {
-        // If no voice sample is selected, try to select one automatically
-        if (!selectedVoiceSample && voiceSamples.length > 0) {
-          setSelectedVoiceSample(voiceSamples[0]);
-          console.log(`Auto-selected voice sample: ${voiceSamples[0]}`);
-        }
-        
-        if (!selectedVoiceSample) {
-          // Fallback to browser's built-in TTS if no sample is available
-          console.log("No voice sample available, using browser TTS");
-          return useBrowserTTS(text);
-        }
-
-        try {
-          // Create new audio element if needed
-          if (!audioRef.current) {
-            audioRef.current = new Audio();
-          }
-
-          // Set the source to the selected voice sample
-          const sampleUrl = `/training-data/voice-samples/${selectedVoiceSample}`;
-          audioRef.current.src = sampleUrl;
-
-          // Determine speaking duration based on text length
-          // A rough estimate: average reading speed is ~150 words per minute
-          // That's about 2.5 words per second
-          const words = text.split(' ').length;
-          const estimatedDuration = Math.max(3, words / 2.5); // At least 3 seconds, or longer based on words
-
-          console.log(`Speaking text (${words} words, ~${estimatedDuration.toFixed(1)}s): "${text}" using sample: ${selectedVoiceSample}`);
-          toast({
-            title: "Speaking",
-            description: text.length > 60 ? text.substring(0, 57) + "..." : text,
-            duration: estimatedDuration * 1000
-          });
-
-          // Play the audio with better error handling
-          try {
-            await audioRef.current.play();
-            setSpeaking(true);
-            
-            // Add an error event listener if not already added
-            if (!audioRef.current.onended) {
-              audioRef.current.onended = () => {
-                setSpeaking(false);
-                console.log("Voice sample playback ended");
-              };
-              
-              audioRef.current.onerror = (e) => {
-                console.error("Audio playback error:", e);
-                setSpeaking(false);
-                // Fallback to browser TTS if sample playback fails
-                useBrowserTTS(text);
-              };
-            }
-          } catch (playError) {
-            console.error("Failed to play voice sample:", playError);
-            // Fallback to browser TTS if sample playback fails
-            return useBrowserTTS(text);
-          }
-
-          // Set a timeout to stop playing after the calculated time
-          // Use the estimated duration based on text length rather than fixed time
-          setTimeout(() => {
-            if (audioRef.current && !this.isPaused) {
-              audioRef.current.pause();
-              setSpeaking(false);
-            }
-          }, estimatedDuration * 1000);
-        } catch (error) {
-          console.error("Error using voice sample for speech:", error);
-          setSpeaking(false);
-          throw error;
-        }
-      },
-
-      stop() {
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-        }
-        this.isPaused = false;
-        setSpeaking(false);
-      },
-
-      togglePause() {
-        if (!audioRef.current) return;
-
-        if (this.isPaused) {
-          audioRef.current.play();
-          this.isPaused = false;
-          setPaused(false);
-        } else {
-          audioRef.current.pause();
-          this.isPaused = true;
-          setPaused(true);
-        }
-      }
+    // Event handlers for audio
+    audioRef.current.onplay = () => setIsPlaying(true);
+    audioRef.current.onended = () => setIsPlaying(false);
+    audioRef.current.onpause = () => setIsPlaying(false);
+    audioRef.current.onerror = (e) => {
+      console.error("Audio playback error:", e);
+      setIsPlaying(false);
+      toast({
+        title: "Playback Error",
+        description: "Could not play audio. Try again or choose another voice sample.",
+        variant: "destructive"
+      });
     };
 
-    console.log("Custom audio player is ready");
-  };
+    // Initial check for voice samples
+    checkVoiceSamples();
 
-  const initializeTTS = () => {
-    if (!isSpeechAvailable && !useBrowserTTS) {
-      setTtsError("Speech synthesis is not supported in your browser");
-      return;
-    }
-
-    console.log("Speech is ready");
-
-    // Initialize the custom player
-    initializeCustomPlayer();
-
-    // Check for voice samples on initialization
-    if (!hasCheckedVoices) {
-      checkVoiceSamples();
-      setHasCheckedVoices(true);
-    }
-  };
-
-  useEffect(() => {
-    initializeTTS();
-
-    // Cleanup
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.src = '';
-      }
-
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-      }
-
-      // Cancel any ongoing speech synthesis
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+        audioRef.current = null;
       }
     };
   }, []);
 
-  // Check voice samples from server
+  // Check for available voice samples
   const checkVoiceSamples = async () => {
     setIsCheckingVoices(true);
     setTtsError(null);
@@ -195,18 +61,10 @@ const TTSButton = ({ text }: TTSButtonProps) => {
       }
 
       const data = await response.json();
+      console.log("Voice samples response:", data);
 
-      // Check voice sample availability
-      let availableSamples: string[] = [];
-
-      if (data.samples && Array.isArray(data.samples)) {
-        // Filter for valid samples
-        availableSamples = data.samples.filter(sample => 
-          sample.endsWith('.wav') && 
-          !sample.includes('_original.wav.bak')
-        );
-        
-        console.log(`Found ${availableSamples.length} valid voice samples`);
+      if (data.success) {
+        const availableSamples = Array.isArray(data.samples) ? data.samples : [];
         setVoiceSamples(availableSamples);
 
         // Select the first sample by default if none is selected
@@ -224,7 +82,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
         }
       }
 
-      const hasVoiceSamples = availableSamples.length > 0;
+      const hasVoiceSamples = data.samples && data.samples.length > 0;
 
       // Display file info for better debugging
       if (data.fileInfo && Array.isArray(data.fileInfo)) {
@@ -236,7 +94,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
       } else {
         toast({
           title: "Voice samples detected",
-          description: `Found ${availableSamples.length} voice samples ready to use`,
+          description: `Found ${data.samples.length} voice samples ready to use`,
         });
       }
     } catch (error) {
@@ -301,18 +159,30 @@ const TTSButton = ({ text }: TTSButtonProps) => {
     }
   };
 
-  // Function to use server-side TTS with voice samples
-  const useServerTTS = async (text: string) => {
-    // If no voice sample is selected but we have samples available, select the first one
-    if (!selectedVoiceSample && voiceSamples.length > 0) {
-      setSelectedVoiceSample(voiceSamples[0]);
-      console.log(`Auto-selected voice sample: ${voiceSamples[0]}`);
-    } else if (!selectedVoiceSample) {
-      console.log("No voice sample available, using browser TTS");
-      return useBrowserTTS(text);
+  // Handle speak button click
+  const handleSpeak = async () => {
+    if (isPlaying) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+      return;
     }
 
+    if (!selectedVoiceSample) {
+      toast({
+        title: "No voice sample selected",
+        description: "Please select a voice sample first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    setTtsError(null);
+
     try {
+      // Use server TTS endpoint instead of browser TTS
       const response = await fetch('/api/tts/speak', {
         method: 'POST',
         headers: {
@@ -321,7 +191,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
         body: JSON.stringify({
           text,
           voiceSample: selectedVoiceSample
-        })
+        }),
       });
 
       if (!response.ok) {
@@ -329,352 +199,134 @@ const TTSButton = ({ text }: TTSButtonProps) => {
       }
 
       const data = await response.json();
+      console.log("TTS response:", data);
 
-      if (!data.success) {
-        throw new Error(data.message || "Failed to process speech");
-      }
+      if (data.success && data.audioUrl) {
+        // Add a timestamp to bust cache
+        const cacheBuster = `?t=${Date.now()}`;
+        const audioUrl = `${data.audioUrl}${cacheBuster}`;
 
-      // Create new audio element if needed
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-      }
-
-      // Play the returned audio
-      audioRef.current.src = data.audioUrl;
-      await audioRef.current.play();
-      setSpeaking(true);
-
-      // Use the estimated duration from the server
-      const duration = data.metadata?.duration || 5;
-
-      // Show toast with the text being spoken
-      toast({
-        title: "Speaking with your voice",
-        description: text.length > 60 ? text.substring(0, 57) + "..." : text,
-        duration: duration * 1000
-      });
-
-      // Set a timeout to stop playing
-      setTimeout(() => {
-        if (audioRef.current && !audioPlayerRef.current?.isPaused) {
-          audioRef.current.pause();
-          setSpeaking(false);
+        if (audioRef.current) {
+          audioRef.current.src = audioUrl;
+          audioRef.current.play()
+            .catch(err => {
+              console.error("Error playing audio:", err);
+              toast({
+                title: "Playback Error",
+                description: `Failed to play audio: ${err.message}`,
+                variant: "destructive"
+              });
+            });
         }
-      }, duration * 1000);
-
-    } catch (error) {
-      console.error("Error with server TTS:", error);
-      throw error;
-    }
-  };
-
-  // Speak the text
-  const speak = async () => {
-    // Handle pause/resume if already speaking
-    if (speaking) {
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.togglePause();
-        return;
-      } else if (isSpeechAvailable) {
-        if (paused) {
-          window.speechSynthesis.resume();
-          setPaused(false);
-        } else {
-          window.speechSynthesis.pause();
-          setPaused(true);
-        }
-        return;
-      }
-    }
-
-    // First check if we have voice samples available
-    if (voiceSamples.length === 0) {
-      await checkVoiceSamples();
-
-      if (voiceSamples.length === 0) {
-        setTtsError("No voice samples available. Please upload WAV files to use custom voices.");
-
-        // Fall back to browser TTS if no samples are available
-        if (isSpeechAvailable && useBrowserTTS) {
-          useBrowserSpeech();
-        } else {
-          toast({
-            title: "Voice Samples Missing",
-            description: "Please upload voice samples to the training-data/voice-samples directory",
-            variant: "destructive"
-          });
-        }
-        return;
-      }
-    }
-
-    try {
-      // Use custom audio player with voice samples
-      if (audioPlayerRef.current && selectedVoiceSample) {
-        try {
-          await audioPlayerRef.current.play(text, 5);
-        } catch (error) {
-          console.error("Error with custom player:", error);
-          // Fall back to browser speech if custom player fails
-          if (isSpeechAvailable && useBrowserTTS) {
-            useBrowserSpeech();
-          } else {
-            throw error;
-          }
-        }
-      } else if (isSpeechAvailable && useBrowserTTS) {
-        useBrowserSpeech();
       } else {
-        throw new Error("No speech method available");
+        throw new Error(data.message || "Failed to generate speech");
       }
     } catch (error) {
-      console.error("Error initializing speech:", error);
-      setTtsError(`Error initializing speech: ${error instanceof Error ? error.message : String(error)}`);
-
+      console.error("TTS error:", error);
+      setTtsError(`TTS error: ${error instanceof Error ? error.message : String(error)}`);
       toast({
-        title: "Speech Error",
+        title: "Speech Generation Failed",
         description: `${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Fallback to browser speech synthesis
-  const useBrowserSpeech = () => {
-    if (!isSpeechAvailable) {
-      setTtsError("Speech synthesis is not supported in your browser");
-      return;
-    }
-
-    console.log("Speaking text using browser speech synthesis");
-
-    try {
-      // Create utterance
-      const utterance = new SpeechSynthesisUtterance(text);
-      utteranceRef.current = utterance;
-
-      // Get available voices
-      const voices = window.speechSynthesis.getVoices();
-
-      // Try to find a good default voice
-      let selectedVoice;
-
-      // First try to find a female UK or US voice
-      selectedVoice = voices.find(voice => 
-        (voice.name.includes('UK') || voice.name.includes('US')) && 
-        voice.name.toLowerCase().includes('female')
-      );
-
-      // If not found, look for just female
-      if (!selectedVoice) {
-        selectedVoice = voices.find(voice => 
-          voice.name.toLowerCase().includes('female')
-        );
-      }
-
-      // If still not found, look for UK or US voice
-      if (!selectedVoice) {
-        selectedVoice = voices.find(voice => 
-          voice.name.includes('UK') || voice.name.includes('US')
-        );
-      }
-
-      // Use the first available voice as a fallback
-      if (!selectedVoice && voices.length > 0) {
-        selectedVoice = voices[0];
-      }
-
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-
-      // Set properties
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-
-      // Add event listeners
-      utterance.onstart = () => {
-        setSpeaking(true);
-      };
-
-      utterance.onend = () => {
-        setSpeaking(false);
-        setPaused(false);
-        console.log("Speech finished");
-      };
-
-      utterance.onerror = (event) => {
-        console.error("Speech synthesis error:", event);
-        setSpeaking(false);
-        setPaused(false);
-        setTtsError(`Speech synthesis error: ${event.error}`);
-
-        toast({
-          title: "Speech Error",
-          description: `${event.error}`,
-          variant: "destructive"
-        });
-      };
-
-      // Cancel any ongoing speech
-      window.speechSynthesis.cancel();
-
-      // Start speaking
-      window.speechSynthesis.speak(utterance);
-    } catch (error) {
-      console.error("Error in browser speech:", error);
-      throw error;
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
     }
   };
 
-  // Stop speaking
-  const stopSpeaking = () => {
-    // Stop custom audio player if active
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.stop();
-    }
-
-    // Also stop browser speech synthesis if active
-    if (isSpeechAvailable) {
-      window.speechSynthesis.cancel();
-    }
-
-    setSpeaking(false);
-    setPaused(false);
-  };
-
-  // If this is being used as a text player button (in message bubble)
-  if (text) {
-    return (
-      <Button
-        onClick={speak}
-        size="icon"
-        variant="ghost"
-        className="h-6 w-6 rounded-full p-0"
-      >
-        {speaking ? (
-          <RefreshCw className="h-4 w-4 animate-spin" />
-        ) : (
-          <Volume2 className="h-4 w-4" />
-        )}
-      </Button>
-    );
-  }
-
-  // Otherwise this is the main TTS toggle button
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex flex-col">
-            <Button
-              onClick={speak}
-              size="icon"
-              variant="ghost"
-              disabled={isCheckingVoices}
-            >
-              {isCheckingVoices ? (
-                <RefreshCw className="h-5 w-5 animate-spin" />
-              ) : ttsError ? (
-                <AlertCircle className="h-5 w-5 text-destructive" />
-              ) : speaking ? (
-                <RefreshCw className="h-5 w-5 animate-spin" />
-              ) : (
-                <Volume2 className="h-5 w-5" />
-              )}
-            </Button>
-
-            <div className="flex flex-col space-y-2">
-              <Button 
-                size="sm" 
-                variant="secondary" 
-                className="w-full"
-                onClick={checkVoiceSamples}
-                disabled={isCheckingVoices}
-              >
-                {isCheckingVoices ? (
-                  <>
-                    <Loader className="mr-2 h-4 w-4 animate-spin" />
-                    Checking...
-                  </>
-                ) : "Check Voice Samples"}
-              </Button>
-
-              {voiceSamples.length > 0 && (
-                <>
-                  <div className="flex flex-col space-y-1">
-                    <label className="text-xs font-medium">Select Voice Sample:</label>
-                    <select 
-                      className="w-full px-2 py-1 rounded text-sm bg-background border"
-                      value={selectedVoiceSample || ''}
-                      onChange={(e) => setSelectedVoiceSample(e.target.value)}
-                    >
-                      {voiceSamples.map(sample => (
-                        <option key={sample} value={sample}>
-                          {sample}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <Button 
-                    size="sm" 
-                    variant="secondary" 
-                    className="w-full"
-                    onClick={splitVoiceSamples}
-                    disabled={isBusy}
-                  >
-                    {isBusy ? (
-                      <>
-                        <Loader className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : "Split Large Samples"}
-                  </Button>
-
-                  <div className="flex items-center space-x-2 text-xs">
-                    <input
-                      type="checkbox"
-                      id="use-browser-tts"
-                      checked={useBrowserTTS}
-                      onChange={() => setUseBrowserTTS(!useBrowserTTS)}
-                      className="rounded"
-                    />
-                    <label htmlFor="use-browser-tts">Fallback to browser TTS</label>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {ttsError && (
-              <div className="text-red-500 text-xs mt-1">{ttsError}</div>
-            )}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          {isCheckingVoices 
-            ? "Checking voice samples..." 
-            : ttsError 
-              ? `TTS Error: ${ttsError}` 
-              : speaking
-                ? "Stop speaking"
-                : "Speak"}
-        </TooltipContent>
-      </Tooltip>
-
-      {/* Reset button */}
-      {speaking && (
-        <button 
-          className="fixed bottom-2 right-2 bg-red-500 text-white text-xs p-1 rounded opacity-70 hover:opacity-100 z-50"
-          onClick={stopSpeaking}
+    <div className={cn("flex flex-col", className)}>
+      <div className="flex gap-2 items-center">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleSpeak}
+          disabled={isLoading || isCheckingVoices || !selectedVoiceSample}
+          className="flex items-center"
         >
-          Stop
-        </button>
-      )}
-    </TooltipProvider>
-  );
-};
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          ) : null}
+          {isPlaying ? "Stop" : "Speak"}
+        </Button>
 
-export default TTSButton;
-export { TTSButton };
+        <div className="flex-1">
+          {selectedVoiceSample ? (
+            <div className="text-xs opacity-70 truncate">
+              Using: {selectedVoiceSample.replace(/_/g, ' ').replace('.wav', '')}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              {voiceSamples.length === 0 ? "No voice samples found" : "Select a voice sample"}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {ttsError && (
+        <div className="text-xs text-red-500 mt-1">{ttsError}</div>
+      )}
+
+      <div className="mt-2">
+        <div className="flex flex-col space-y-2">
+          <Button 
+            size="sm" 
+            variant="secondary" 
+            className="w-full"
+            onClick={checkVoiceSamples}
+            disabled={isCheckingVoices}
+          >
+            {isCheckingVoices ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Checking...
+              </>
+            ) : "Check Voice Samples"}
+          </Button>
+
+          {voiceSamples.length > 0 && (
+            <>
+              <div className="flex flex-col space-y-1">
+                <label className="text-xs font-medium">Select Voice Sample:</label>
+                <select 
+                  className="w-full px-2 py-1 rounded text-sm bg-background border"
+                  value={selectedVoiceSample || ''}
+                  onChange={(e) => setSelectedVoiceSample(e.target.value)}
+                >
+                  <option value="">Select a sample</option>
+                  {voiceSamples.map(sample => (
+                    <option key={sample} value={sample}>
+                      {sample}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full"
+                onClick={splitVoiceSamples}
+                disabled={isBusy}
+              >
+                {isBusy ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : "Split Large Samples"}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
