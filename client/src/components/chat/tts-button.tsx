@@ -42,8 +42,16 @@ const TTSButton = ({ text }: TTSButtonProps) => {
       isPaused: false,
 
       async play(text: string, playTime: number) {
+        // If no voice sample is selected, try to select one automatically
+        if (!selectedVoiceSample && voiceSamples.length > 0) {
+          setSelectedVoiceSample(voiceSamples[0]);
+          console.log(`Auto-selected voice sample: ${voiceSamples[0]}`);
+        }
+        
         if (!selectedVoiceSample) {
-          throw new Error("No voice sample selected");
+          // Fallback to browser's built-in TTS if no sample is available
+          console.log("No voice sample available, using browser TTS");
+          return useBrowserTTS(text);
         }
 
         try {
@@ -62,16 +70,37 @@ const TTSButton = ({ text }: TTSButtonProps) => {
           const words = text.split(' ').length;
           const estimatedDuration = Math.max(3, words / 2.5); // At least 3 seconds, or longer based on words
 
-          console.log(`Speaking text (${words} words, ~${estimatedDuration.toFixed(1)}s): "${text}"`);
+          console.log(`Speaking text (${words} words, ~${estimatedDuration.toFixed(1)}s): "${text}" using sample: ${selectedVoiceSample}`);
           toast({
             title: "Speaking",
             description: text.length > 60 ? text.substring(0, 57) + "..." : text,
             duration: estimatedDuration * 1000
           });
 
-          // Play the audio
-          await audioRef.current.play();
-          setSpeaking(true);
+          // Play the audio with better error handling
+          try {
+            await audioRef.current.play();
+            setSpeaking(true);
+            
+            // Add an error event listener if not already added
+            if (!audioRef.current.onended) {
+              audioRef.current.onended = () => {
+                setSpeaking(false);
+                console.log("Voice sample playback ended");
+              };
+              
+              audioRef.current.onerror = (e) => {
+                console.error("Audio playback error:", e);
+                setSpeaking(false);
+                // Fallback to browser TTS if sample playback fails
+                useBrowserTTS(text);
+              };
+            }
+          } catch (playError) {
+            console.error("Failed to play voice sample:", playError);
+            // Fallback to browser TTS if sample playback fails
+            return useBrowserTTS(text);
+          }
 
           // Set a timeout to stop playing after the calculated time
           // Use the estimated duration based on text length rather than fixed time
@@ -171,15 +200,27 @@ const TTSButton = ({ text }: TTSButtonProps) => {
       let availableSamples: string[] = [];
 
       if (data.samples && Array.isArray(data.samples)) {
+        // Filter for valid samples
         availableSamples = data.samples.filter(sample => 
           sample.endsWith('.wav') && 
           !sample.includes('_original.wav.bak')
         );
+        
+        console.log(`Found ${availableSamples.length} valid voice samples`);
         setVoiceSamples(availableSamples);
 
-        // Select the first sample by default
+        // Select the first sample by default if none is selected
         if (availableSamples.length > 0 && !selectedVoiceSample) {
+          console.log(`Auto-selecting first sample: ${availableSamples[0]}`);
           setSelectedVoiceSample(availableSamples[0]);
+        } else if (availableSamples.length > 0) {
+          // Ensure the selected sample is in the available list
+          if (!availableSamples.includes(selectedVoiceSample)) {
+            console.log(`Previously selected sample ${selectedVoiceSample} not found, selecting ${availableSamples[0]}`);
+            setSelectedVoiceSample(availableSamples[0]);
+          } else {
+            console.log(`Continuing with selected sample: ${selectedVoiceSample}`);
+          }
         }
       }
 
@@ -262,8 +303,13 @@ const TTSButton = ({ text }: TTSButtonProps) => {
 
   // Function to use server-side TTS with voice samples
   const useServerTTS = async (text: string) => {
-    if (!selectedVoiceSample) {
-      throw new Error("No voice sample selected");
+    // If no voice sample is selected but we have samples available, select the first one
+    if (!selectedVoiceSample && voiceSamples.length > 0) {
+      setSelectedVoiceSample(voiceSamples[0]);
+      console.log(`Auto-selected voice sample: ${voiceSamples[0]}`);
+    } else if (!selectedVoiceSample) {
+      console.log("No voice sample available, using browser TTS");
+      return useBrowserTTS(text);
     }
 
     try {
