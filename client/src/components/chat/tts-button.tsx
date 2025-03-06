@@ -27,6 +27,21 @@ const TTSButton = ({ text }: TTSButtonProps) => {
     const initializeTTS = async () => {
       if (hasInitialized.current) return;
       hasInitialized.current = true;
+      
+      // Check if speech synthesis is supported
+      if (!('speechSynthesis' in window)) {
+        console.error('Speech synthesis not supported');
+        setTtsError('Speech synthesis not supported in this browser');
+        return;
+      }
+      
+      // Initialize voices if needed
+      if (window.speechSynthesis.getVoices().length === 0) {
+        // Firefox needs a little time to initialize voices
+        window.speechSynthesis.onvoiceschanged = () => {
+          console.log('Voices loaded:', window.speechSynthesis.getVoices().length);
+        };
+      }
 
       try {
         // Create audio context
@@ -73,6 +88,11 @@ const TTSButton = ({ text }: TTSButtonProps) => {
       
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
+      }
+      
+      // Cancel any ongoing speech synthesis
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -122,37 +142,64 @@ const TTSButton = ({ text }: TTSButtonProps) => {
     }
   };
 
-  // Play voice sample with text
+  // Play text using browser's speech synthesis
   const playTextWithSample = async () => {
-    if (!text || !selectedVoiceSample || !audioRef.current) {
-      console.error("Missing text or voice sample");
+    if (!text) {
+      console.error("Missing text to speak");
       return;
     }
     
     try {
       setIsPlaying(true);
       
-      // Construct the path to the voice sample
-      const sampleUrl = `/training-data/voice-samples/${selectedVoiceSample}`;
+      // Use the Web Speech API to speak the text
+      const utterance = new SpeechSynthesisUtterance(text);
       
-      // Set the audio source to the selected voice sample
-      audioRef.current.src = sampleUrl;
+      // Get available voices
+      const voices = window.speechSynthesis.getVoices();
       
-      // Play the audio
-      const playPromise = audioRef.current.play();
+      // Select a voice (preferably a female voice, as it might sound better)
+      const femaleVoices = voices.filter(voice => 
+        voice.name.toLowerCase().includes('female') || 
+        voice.name.includes('woman') || 
+        voice.name.includes('girl')
+      );
       
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.error("Error playing audio:", error);
-          setIsPlaying(false);
-          setTtsError(`Error playing audio: ${error.message}`);
-          toast({
-            title: "Audio Error",
-            description: error.message,
-            variant: "destructive"
-          });
-        });
+      // Set voice - prefer female voice if available, otherwise use default
+      if (femaleVoices.length > 0) {
+        utterance.voice = femaleVoices[0];
+      } else if (voices.length > 0) {
+        utterance.voice = voices[0];
       }
+      
+      // Adjust speech parameters
+      utterance.rate = 1.0; // Normal speed
+      utterance.pitch = 1.0; // Normal pitch
+      utterance.volume = 1.0; // Full volume
+      
+      // Set event handlers
+      utterance.onend = () => {
+        console.log("Speech finished");
+        setIsPlaying(false);
+      };
+      
+      utterance.onerror = (event) => {
+        console.error("Speech error:", event);
+        setIsPlaying(false);
+        setTtsError(`Speech error: ${event.error}`);
+        toast({
+          title: "Speech Error",
+          description: event.error,
+          variant: "destructive"
+        });
+      };
+      
+      // Play the speech
+      window.speechSynthesis.speak(utterance);
+      
+      // Log that we're using speech synthesis instead of audio sample
+      console.log("Speaking text using browser speech synthesis");
+      
     } catch (error) {
       console.error("Error in playTextWithSample:", error);
       setIsPlaying(false);
@@ -161,11 +208,18 @@ const TTSButton = ({ text }: TTSButtonProps) => {
   };
 
   const stopAudio = () => {
+    // Stop any playing audio
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
-      setIsPlaying(false);
     }
+    
+    // Cancel any ongoing speech synthesis
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    
+    setIsPlaying(false);
   };
 
   const handleSpeak = () => {
@@ -290,6 +344,11 @@ const TTSButton = ({ text }: TTSButtonProps) => {
               </select>
             )}
             
+            {!ttsError && isTTSEnabled && (
+              <div className="text-xs text-center mt-1 text-gray-500">
+                Using browser speech
+              </div>
+            )}
             {ttsError && (
               <Button 
                 onClick={handleSplitSamples} 
@@ -309,8 +368,8 @@ const TTSButton = ({ text }: TTSButtonProps) => {
             : ttsError 
               ? `TTS Error: ${ttsError}` 
               : isTTSEnabled 
-                ? "Disable text-to-speech" 
-                : "Enable text-to-speech"}
+                ? "Disable text-to-speech (uses browser speech)" 
+                : "Enable text-to-speech (uses browser speech)"}
         </TooltipContent>
       </Tooltip>
 
