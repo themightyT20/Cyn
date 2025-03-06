@@ -530,10 +530,10 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     }
   });
 
-  // Generate TTS with specific voice
+  // Update only the TTS generation endpoint
   router.post("/api/tts/generate", async (req: Request, res: Response) => {
     try {
-      const { text, voiceId } = req.body;
+      const { text } = req.body;
 
       if (!text) {
         return res.status(400).json({ 
@@ -542,23 +542,29 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         });
       }
 
-      // Check if voice exists
-      const voicePath = path.join(VOICE_SAMPLES_DIR, voiceId);
-      if (!existsSync(voicePath)) {
-        return res.status(404).json({ 
-          success: false, 
-          message: "Voice not found" 
-        });
+      // Initialize Google Cloud TTS client
+      const client = new TextToSpeechClient();
+
+      // Generate speech using standard voice
+      const [response] = await client.synthesizeSpeech({
+        input: { text },
+        voice: { languageCode: 'en-US', ssmlGender: 'FEMALE' },
+        audioConfig: { 
+          audioEncoding: 'MP3',
+          speakingRate: 1.0,
+          pitch: 0,
+          volumeGainDb: 0
+        },
+      });
+
+      if (!response.audioContent) {
+        throw new Error("No audio content generated");
       }
 
-      // For now, return a success response
-      // TODO: Implement actual voice cloning and synthesis
-      res.json({ 
-        success: true,
-        message: "TTS generation endpoint ready",
-        text,
-        voiceId
-      });
+      // Send audio response
+      res.set('Content-Type', 'audio/mp3');
+      res.send(Buffer.from(response.audioContent));
+
     } catch (error) {
       console.error("Error generating TTS:", error);
       res.status(500).json({ 
