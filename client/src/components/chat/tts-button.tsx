@@ -52,10 +52,34 @@ const TTSButton = ({ text }: TTSButtonProps) => {
       if (!hasVoiceSamples) {
         setTtsError("No voice samples found. Please upload WAV files to the training-data/voice-samples directory.");
       } else {
-        toast({
-          title: "Voice diagnostic complete",
-          description: `Found voice samples: ${hasVoiceSamples ? 'Yes' : 'No'}`,
-        });
+        // Check for large voice samples
+        let largeFilesFound = false;
+        let largeFileNames = [];
+        
+        if (data.fileSizes) {
+          Object.entries(data.fileSizes).forEach(([fileName, fileInfo]: [string, any]) => {
+            if (fileInfo.isLarge) {
+              largeFilesFound = true;
+              largeFileNames.push(`${fileName} (${fileInfo.sizeInMB}MB)`);
+            }
+          });
+        }
+        
+        if (largeFilesFound) {
+          const message = `Warning: Found large voice samples (>10MB): ${largeFileNames.join(', ')}. This may cause issues with speech synthesis. Consider using shorter samples (30-60 seconds).`;
+          console.warn(message);
+          setTtsError(message);
+          toast({
+            title: "Large voice samples detected",
+            description: "Voice files are too large (>10MB). Try shorter samples (30-60 seconds).",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Voice diagnostic complete",
+            description: `Found voice samples: ${hasVoiceSamples ? 'Yes' : 'No'}`,
+          });
+        }
       }
     } catch (error) {
       console.error("Error checking voice samples:", error);

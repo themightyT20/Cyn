@@ -47,12 +47,30 @@ export async function registerRoutes(app: express.Express) {
 
       const files = await fs.readdir(TRAINING_DATA_DIR);
       const voiceFiles = files.filter(file => file.endsWith('.wav'));
+      
+      // Get file sizes
+      const fileSizes = {};
+      for (const file of voiceFiles) {
+        try {
+          const filePath = path.join(TRAINING_DATA_DIR, file);
+          const stats = await fs.stat(filePath);
+          fileSizes[file] = {
+            size: stats.size,
+            sizeInMB: (stats.size / (1024 * 1024)).toFixed(2),
+            isLarge: stats.size > 10 * 1024 * 1024 // Flag if larger than 10MB
+          };
+        } catch (err) {
+          console.error(`Error getting size for ${file}:`, err);
+        }
+      }
 
       console.log(`Found ${voiceFiles.length} voice samples in ${TRAINING_DATA_DIR}`);
+      console.log('Voice sample sizes:', fileSizes);
       
       res.json({
         success: true,
         samples: voiceFiles,
+        fileSizes: fileSizes,
         directory: TRAINING_DATA_DIR
       });
     } catch (error) {

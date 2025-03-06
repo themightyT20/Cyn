@@ -17,7 +17,8 @@ training-data/voice-samples/
 - Files must be WAV format
 - Audio should be clear and high quality
 - Each file should contain a single voice
-- Recommended length: 5-30 seconds per sample
+- **Recommended length: 30-60 seconds per sample** (maximum 2 minutes)
+- **Maximum file size: 10MB** (larger files may cause issues)
 - Multiple samples are recommended for better results
 
 ## How to Add Voice Samples
