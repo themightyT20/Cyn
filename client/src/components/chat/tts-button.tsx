@@ -178,6 +178,12 @@ const TTSButton = ({ text }: TTSButtonProps) => {
   const handleSplitSamples = async () => {
     try {
       setIsBusy(true);
+      
+      toast({
+        title: "Processing voice samples",
+        description: "Splitting large voice samples into smaller chunks...",
+      });
+      
       const response = await fetch('/api/tts/split-samples', {
         method: 'POST',
       });
@@ -188,15 +194,28 @@ const TTSButton = ({ text }: TTSButtonProps) => {
         toast({
           title: "Voice samples split successfully",
           description: `Split ${data.processed.length} large voice samples into smaller chunks.`,
+          variant: "default"
         });
         // Refresh the voice samples list
-        checkVoiceSamples();
+        setTimeout(() => {
+          checkVoiceSamples();
+        }, 1000); // Give the server time to finish processing
       } else {
         setTtsError(`Failed to split voice samples: ${data.message}`);
+        toast({
+          title: "Failed to split samples",
+          description: data.message || "Unknown error occurred",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error("Error splitting voice samples:", error);
       setTtsError(`Error splitting voice samples: ${error instanceof Error ? error.message : String(error)}`);
+      toast({
+        title: "Error processing samples",
+        description: `${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive"
+      });
     } finally {
       setIsBusy(false);
     }

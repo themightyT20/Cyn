@@ -287,17 +287,23 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
   // Split large voice samples into smaller chunks
   router.post("/api/tts/split-samples", async (_req: Request, res: Response) => {
     try {
+      console.log("Received request to split voice samples");
+      
       // Import the splitter function dynamically to avoid circular dependencies
       const { splitLargeVoiceSamples } = await import('./voice-sample-splitter');
+      
+      console.log("Running voice sample splitter...");
       const result = await splitLargeVoiceSamples();
       
       if (result.success) {
+        console.log(`Successfully processed ${result.processed?.length || 0} voice samples`);
         res.json({
           success: true,
-          message: `Successfully processed ${result.processed.length} large voice samples`,
+          message: `Successfully processed ${result.processed?.length || 0} voice samples`,
           processed: result.processed
         });
       } else {
+        console.error("Voice sample processing failed:", result.message || "Unknown error");
         res.status(400).json({
           success: false,
           message: result.message || "Failed to process voice samples",
@@ -309,6 +315,83 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       res.status(500).json({ 
         success: false, 
         message: "Error splitting voice samples",
+        error: String(error)
+      });
+    }
+  });
+  
+  // New endpoint to analyze and fix voice samples
+  router.get("/api/tts/analyze", async (_req: Request, res: Response) => {
+    try {
+      const TRAINING_DATA_DIR = path.join(__dirname, '..', 'training-data', 'voice-samples');
+      
+      // Check if directory exists
+      let directoryExists = false;
+      try {
+        await fs.access(TRAINING_DATA_DIR);
+        directoryExists = true;
+      } catch (e) {
+        console.log(`Voice samples directory doesn't exist: ${TRAINING_DATA_DIR}`);
+      }
+
+      if (!directoryExists) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Voice samples directory doesn't exist" 
+        });
+      }
+
+      const files = await fs.readdir(TRAINING_DATA_DIR);
+      const voiceFiles = files.filter(file => file.endsWith('.wav'));
+      
+      // Get file info
+      const fileInfo = [];
+      for (const file of voiceFiles) {
+        try {
+          const filePath = path.join(TRAINING_DATA_DIR, file);
+          const stats = await fs.stat(filePath);
+          const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+          
+          // Use ffprobe to get duration if available
+          let duration = "Unknown";
+          try {
+            const ffprobePath = ffmpegPath?.replace('ffmpeg', 'ffprobe') || 'ffprobe';
+            const durationOutput = execSync(
+              `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
+            ).toString().trim();
+            duration = `${parseFloat(durationOutput).toFixed(2)} seconds`;
+          } catch (e) {
+            console.error(`Could not determine duration for ${file}:`, e);
+          }
+          
+          fileInfo.push({
+            file,
+            size: `${fileSizeMB} MB`,
+            duration: duration,
+            isChunk: file.includes('_chunk_'),
+            isOriginal: file.includes('_original'),
+            path: filePath
+          });
+        } catch (err) {
+          console.error(`Error analyzing ${file}:`, err);
+        }
+      }
+      
+      res.json({
+        success: true,
+        files: fileInfo,
+        directory: TRAINING_DATA_DIR,
+        totalFiles: voiceFiles.length,
+        chunks: fileInfo.filter(f => f.isChunk).length,
+        originals: fileInfo.filter(f => f.isOriginal).length,
+        unprocessed: fileInfo.filter(f => !f.isChunk && !f.isOriginal).length
+      });
+      
+    } catch (error) {
+      console.error("Error analyzing voice samples:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error analyzing voice samples",
         error: String(error)
       });
     }
