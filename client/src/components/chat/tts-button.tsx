@@ -254,6 +254,31 @@ const TTSButton = ({ text }: TTSButtonProps) => {
                 : "Enable text-to-speech"}
         </TooltipContent>
       </Tooltip>
+
+      {/* Hidden button to force reload TTS engine - debug purposes */}
+      {isPlaying && (
+        <button 
+          className="fixed bottom-2 right-2 bg-red-500 text-white text-xs p-1 rounded opacity-70 hover:opacity-100 z-50"
+          onClick={() => {
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.onvoiceschanged = null;
+
+            // Clear any cached data
+            if (window.caches) {
+              caches.keys().then(names => {
+                names.forEach(name => {
+                  caches.delete(name);
+                });
+              });
+            }
+
+            // Reload the page to reinitialize everything
+            window.location.reload();
+          }}
+        >
+          Reset TTS
+        </button>
+      )}
     </TooltipProvider>
   );
 };
