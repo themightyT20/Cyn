@@ -1,90 +1,26 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
-import { Volume2, VolumeOff, RefreshCw, AlertCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { RefreshCw, Volume2, VolumeOff, AlertCircle } from "lucide-react";
 import { 
-  Tooltip, 
-  TooltipContent, 
-  TooltipProvider, 
-  TooltipTrigger 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 
 interface TTSButtonProps {
-  text: string;
+  text?: string;
 }
 
-export function TTSButton({ text }: TTSButtonProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const { toast } = useToast();
-  const [utterance, setUtterance] = useState<SpeechSynthesisUtterance | null>(null);
-
-  useEffect(() => {
-    // Create utterance instance
-    const newUtterance = new SpeechSynthesisUtterance(text);
-    newUtterance.lang = 'en-US';
-    newUtterance.rate = 1;
-    newUtterance.pitch = 1;
-    newUtterance.volume = 1;
-
-    // Add event listeners
-    newUtterance.onend = () => setIsPlaying(false);
-    newUtterance.onerror = (event) => {
-      console.error('TTS Error:', event);
-      setIsPlaying(false);
-      toast({
-        title: "Speech Error",
-        description: "Could not play text-to-speech",
-        variant: "destructive"
-      });
-    };
-
-    setUtterance(newUtterance);
-
-    // Cleanup
-    return () => {
-      if (isPlaying) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, [text]);
-
-  const handleSpeak = () => {
-    if (!utterance) return;
-
-    if (isPlaying) {
-      window.speechSynthesis.cancel();
-      setIsPlaying(false);
-    } else {
-      // Ensure we're starting fresh
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-      setIsPlaying(true);
-    }
-  };
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-6 w-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
-      onClick={handleSpeak}
-      title={isPlaying ? "Stop speaking" : "Speak message"}
-    >
-      {isPlaying ? (
-        <VolumeOff className="h-4 w-4" />
-      ) : (
-        <Volume2 className="h-4 w-4" />
-      )}
-    </Button>
-  );
-}
-
-
-const TTSButton = () => {
+const TTSButton = ({ text }: TTSButtonProps) => {
   const [isTTSEnabled, setIsTTSEnabled] = useState(false);
   const [isCheckingVoices, setIsCheckingVoices] = useState(false);
   const [diagnosticInfo, setDiagnosticInfo] = useState<any>(null);
   const [ttsError, setTtsError] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [utterance, setUtterance] = useState<SpeechSynthesisUtterance | null>(null);
   const { toast } = useToast();
   const hasInitialized = useRef(false);
 
@@ -155,6 +91,53 @@ const TTSButton = () => {
     initializeTTS();
   }, []);
 
+  // Text-to-speech functionality
+  useEffect(() => {
+    if (!text) return;
+    
+    // Create utterance instance
+    const newUtterance = new SpeechSynthesisUtterance(text);
+    newUtterance.lang = 'en-US';
+    newUtterance.rate = 1;
+    newUtterance.pitch = 1;
+    newUtterance.volume = 1;
+
+    // Add event listeners
+    newUtterance.onend = () => setIsPlaying(false);
+    newUtterance.onerror = (event) => {
+      console.error('TTS Error:', event);
+      setIsPlaying(false);
+      toast({
+        title: "Speech Error",
+        description: "Could not play text-to-speech",
+        variant: "destructive"
+      });
+    };
+
+    setUtterance(newUtterance);
+
+    // Cleanup
+    return () => {
+      if (isPlaying) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [text]);
+
+  const handleSpeak = () => {
+    if (!utterance) return;
+
+    if (isPlaying) {
+      window.speechSynthesis.cancel();
+      setIsPlaying(false);
+    } else {
+      // Ensure we're starting fresh
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+      setIsPlaying(true);
+    }
+  };
+
   const toggleTTS = () => {
     // If there's an error, run diagnostics instead of toggling
     if (ttsError) {
@@ -168,6 +151,25 @@ const TTSButton = () => {
     });
   };
 
+  // If this is being used as a text player button (in message bubble)
+  if (text) {
+    return (
+      <Button
+        onClick={handleSpeak}
+        size="icon"
+        variant="ghost"
+        className="h-6 w-6 rounded-full p-0"
+      >
+        {isPlaying ? (
+          <RefreshCw className="h-4 w-4 animate-spin" />
+        ) : (
+          <Volume2 className="h-4 w-4" />
+        )}
+      </Button>
+    );
+  }
+
+  // Otherwise this is the main TTS toggle button
   return (
     <TooltipProvider>
       <Tooltip>
@@ -206,3 +208,4 @@ const TTSButton = () => {
 };
 
 export default TTSButton;
+export { TTSButton };
