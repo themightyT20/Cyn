@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import Speech from 'speak-tts';
 import { Button } from "@/components/ui/button";
 import { Volume2, VolumeOff, Settings } from "lucide-react";
 import {
@@ -11,87 +10,100 @@ import {
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from '@tanstack/react-query';
 
 interface TTSButtonProps {
   text: string;
 }
 
+interface Voice {
+  voiceId: string;
+  sampleCount: number;
+  lastUpdated: string;
+}
+
 export function TTSButton({ text }: TTSButtonProps) {
-  const [speech] = useState(new Speech());
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [settings, setSettings] = useState({
-    voice: '',
+    voiceId: '',
     rate: 1,
     pitch: 1,
     volume: 1
   });
 
+  // Fetch available trained voices
+  const { data: voicesData } = useQuery({
+    queryKey: ['/api/tts/voices'],
+    queryFn: async () => {
+      const response = await fetch('/api/tts/voices');
+      if (!response.ok) throw new Error('Failed to fetch voices');
+      return response.json();
+    }
+  });
+
   useEffect(() => {
-    speech
-      .init({
-        volume: settings.volume,
-        lang: "en-US",
-        rate: settings.rate,
-        pitch: settings.pitch,
-        splitSentences: true,
-      })
-      .then((data: unknown) => {
-        console.log("Speech is ready", data);
-        setIsInitialized(true);
-        // Get available voices
-        if (window.speechSynthesis) {
-          const availableVoices = window.speechSynthesis.getVoices();
-          setVoices(availableVoices);
-          if (availableVoices.length > 0 && !settings.voice) {
-            setSettings(prev => ({ ...prev, voice: availableVoices[0].name }));
-          }
-        }
-      })
-      .catch((e: unknown) => {
-        console.error("An error occurred while initializing speech", e);
-      });
-
-    // Handle dynamic voice loading
-    window.speechSynthesis.onvoiceschanged = () => {
-      const availableVoices = window.speechSynthesis.getVoices();
-      setVoices(availableVoices);
+    // Cleanup audio element on unmount
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.remove();
+      }
     };
-  }, []);
+  }, [audioElement]);
 
-  const handleSpeak = () => {
-    if (!isInitialized) return;
+  const handleSpeak = async () => {
+    if (isPlaying && audioElement) {
+      audioElement.pause();
+      setIsPlaying(false);
+      return;
+    }
 
-    if (isSpeaking) {
-      speech.cancel();
-      setIsSpeaking(false);
-    } else {
-      speech.speak({
-        text,
-        queue: false,
-        listeners: {
-          onstart: () => setIsSpeaking(true),
-          onend: () => setIsSpeaking(false),
-          onerror: (err: unknown) => {
-            console.error("TTS Error:", err);
-            setIsSpeaking(false);
-          },
+    try {
+      const response = await fetch('/api/tts/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          text,
+          voiceId: settings.voiceId,
+          settings: {
+            rate: settings.rate,
+            pitch: settings.pitch,
+            volume: settings.volume
+          }
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate speech');
+      }
+
+      const audio = new Audio(URL.createObjectURL(await response.blob()));
+      audio.playbackRate = settings.rate;
+      audio.volume = settings.volume;
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setAudioElement(null);
+      };
+
+      setAudioElement(audio);
+      audio.play();
+      setIsPlaying(true);
+    } catch (error) {
+      console.error('Error generating speech:', error);
+      // TODO: Show error toast
     }
   };
 
   const updateSettings = (key: string, value: number | string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    speech.setVolume(settings.volume);
-    speech.setRate(settings.rate);
-    speech.setPitch(settings.pitch);
-    if (typeof value === 'string' && key === 'voice') {
-      speech.setVoice(value);
-    }
   };
+
+  const voices = voicesData?.voices || [];
 
   return (
     <>
@@ -101,10 +113,10 @@ export function TTSButton({ text }: TTSButtonProps) {
           size="icon"
           className="h-6 w-6 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
           onClick={handleSpeak}
-          disabled={!isInitialized}
-          title={isSpeaking ? "Stop speaking" : "Speak message"}
+          disabled={!settings.voiceId}
+          title={isPlaying ? "Stop speaking" : "Speak message"}
         >
-          {isSpeaking ? (
+          {isPlaying ? (
             <VolumeOff className="h-4 w-4" />
           ) : (
             <Volume2 className="h-4 w-4" />
@@ -130,16 +142,16 @@ export function TTSButton({ text }: TTSButtonProps) {
             <div className="space-y-2">
               <Label>Voice</Label>
               <Select 
-                value={settings.voice} 
-                onValueChange={(value) => updateSettings('voice', value)}
+                value={settings.voiceId} 
+                onValueChange={(value) => updateSettings('voiceId', value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a voice" />
                 </SelectTrigger>
                 <SelectContent>
-                  {voices.map((voice) => (
-                    <SelectItem key={voice.name} value={voice.name}>
-                      {voice.name} ({voice.lang})
+                  {voices.map((voice: Voice) => (
+                    <SelectItem key={voice.voiceId} value={voice.voiceId}>
+                      Voice {voice.voiceId} ({voice.sampleCount} samples)
                     </SelectItem>
                   ))}
                 </SelectContent>
