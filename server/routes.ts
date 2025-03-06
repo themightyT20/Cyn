@@ -8,7 +8,6 @@ import { log } from "./vite";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import fileUpload from "express-fileupload";
 import { TextToSpeechClient } from '@google-cloud/text-to-speech';
-import WaveFile from 'wavefile';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +31,69 @@ export async function registerRoutes(app: express.Express) {
     createParentPath: true,
     limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
   }));
+
+  // Upload voice sample for training
+  router.post("/api/tts/upload-sample", async (req: Request, res: Response) => {
+    try {
+      if (!req.files || !req.files.audio) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "No audio file uploaded" 
+        });
+      }
+
+      const audioFile = req.files.audio;
+      const voiceId = req.body.voiceId || nanoid();
+
+      // Ensure it's a WAV file
+      if (!Array.isArray(audioFile) && audioFile.mimetype !== 'audio/wav') {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Only WAV files are supported" 
+        });
+      }
+
+      // Create voice sample directory
+      const voicePath = path.join(VOICE_SAMPLES_DIR, voiceId);
+      await fs.mkdir(voicePath, { recursive: true });
+
+      // Generate unique filename
+      const filename = `sample_${Date.now()}.wav`;
+      const filepath = path.join(voicePath, filename);
+
+      // Save file
+      if (!Array.isArray(audioFile)) {
+        await audioFile.mv(filepath);
+
+        try {
+          // Basic file validation
+          const stats = await fs.stat(filepath);
+          if (stats.size === 0) {
+            throw new Error("Invalid WAV file: File is empty");
+          }
+
+          res.json({
+            success: true,
+            voiceId: voiceId,
+            message: "Voice sample uploaded successfully",
+            sampleCount: (await fs.readdir(voicePath)).length
+          });
+        } catch (error) {
+          console.error("Error processing WAV file:", error);
+          // Clean up the uploaded file if processing fails
+          await fs.unlink(filepath);
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error("Error uploading voice sample:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error processing voice sample",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
 
   // Get all messages
   router.get("/api/messages", async (_req: Request, res: Response) => {
@@ -430,62 +492,6 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     }
   });
 
-
-  // Upload voice sample for training
-  router.post("/api/tts/upload-sample", async (req: Request, res: Response) => {
-    try {
-      if (!req.files || !req.files.audio) {
-        return res.status(400).json({ 
-          success: false, 
-          message: "No audio file uploaded" 
-        });
-      }
-
-      const audioFile = req.files.audio;
-      const voiceId = req.body.voiceId || nanoid();
-
-      // Ensure it's a WAV file
-      if (!Array.isArray(audioFile) && audioFile.mimetype !== 'audio/wav') {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Only WAV files are supported" 
-        });
-      }
-
-      // Create voice sample directory
-      const voicePath = path.join(VOICE_SAMPLES_DIR, voiceId);
-      await fs.mkdir(voicePath, { recursive: true });
-
-      // Generate unique filename
-      const filename = `sample_${Date.now()}.wav`;
-      const filepath = path.join(voicePath, filename);
-
-      // Save file
-      if (!Array.isArray(audioFile)) {
-        await audioFile.mv(filepath);
-
-        // Process WAV file to ensure correct format
-        const wav = new WaveFile(await fs.readFile(filepath));
-        wav.toBitDepth("16"); // Convert to 16-bit
-        wav.toSampleRate(22050); // Convert to 22.05kHz
-        await fs.writeFile(filepath, wav.toBuffer());
-
-        res.json({
-          success: true,
-          voiceId: voiceId,
-          message: "Voice sample uploaded successfully",
-          sampleCount: (await fs.readdir(voicePath)).length
-        });
-      }
-    } catch (error) {
-      console.error("Error uploading voice sample:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Error processing voice sample",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
 
   // Get list of trained voices
   router.get("/api/tts/voices", async (_req: Request, res: Response) => {
