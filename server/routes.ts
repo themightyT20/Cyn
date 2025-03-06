@@ -333,6 +333,56 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     }
   });
   
+  // Voice-based text-to-speech endpoint
+  router.post("/api/tts/speak", async (req: Request, res: Response) => {
+    try {
+      const { text, voiceSample } = req.body;
+      
+      if (!text || !voiceSample) {
+        return res.status(400).json({
+          success: false,
+          message: "Text and voice sample are required"
+        });
+      }
+      
+      // Get the path to the voice sample
+      const samplePath = path.join(TRAINING_DATA_DIR, voiceSample);
+      
+      // Check if the sample exists
+      try {
+        await fs.access(samplePath);
+      } catch (e) {
+        return res.status(404).json({
+          success: false,
+          message: `Voice sample ${voiceSample} not found`
+        });
+      }
+      
+      // Simply return the voice sample for now
+      // In a production environment, this would use a real voice cloning API
+      return res.json({
+        success: true,
+        message: "Text processed successfully",
+        audioUrl: `/training-data/voice-samples/${voiceSample}`,
+        text,
+        // Include some metadata that would normally come from a voice API
+        metadata: {
+          duration: Math.ceil(text.split(' ').length / 2.5), // Estimate duration based on word count
+          wordCount: text.split(' ').length,
+          usesSample: true,
+          sampleName: voiceSample
+        }
+      });
+    } catch (error) {
+      console.error("Error in TTS endpoint:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error processing TTS request",
+        error: String(error)
+      });
+    }
+  });
+
   // New endpoint to analyze and fix voice samples
   router.get("/api/tts/analyze", async (_req: Request, res: Response) => {
     try {

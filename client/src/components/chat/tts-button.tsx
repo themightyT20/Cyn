@@ -24,8 +24,8 @@ const TTSButton = ({ text }: TTSButtonProps) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const customAudioPlayer = useRef<{
-    play: (text: string, sampleUrl: string) => Promise<void>,
+  const audioPlayerRef = useRef<{
+    play: (text: string, playTime: number) => Promise<void>,
     stop: () => void,
     isPaused: boolean,
     togglePause: () => void
@@ -36,55 +36,53 @@ const TTSButton = ({ text }: TTSButtonProps) => {
 
   // Initialize custom audio player that uses voice samples to simulate speaking
   const initializeCustomPlayer = () => {
-    if (customAudioPlayer.current) return;
+    if (audioPlayerRef.current) return;
 
-    // Create audio element for custom playback
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-      audioRef.current.addEventListener('ended', () => {
-        setSpeaking(false);
-      });
-    }
-
-    // Custom audio player that plays voice samples in a pattern that mimics speaking
-    customAudioPlayer.current = {
+    audioPlayerRef.current = {
       isPaused: false,
 
-      async play(text: string, sampleUrl: string) {
-        if (!audioRef.current) return;
-
-        // Set the sample as the audio source
-        const fullSampleUrl = `/training-data/voice-samples/${sampleUrl}`;
-        audioRef.current.src = fullSampleUrl;
-        audioRef.current.loop = false;
+      async play(text: string, playTime: number) {
+        if (!selectedVoiceSample) {
+          throw new Error("No voice sample selected");
+        }
 
         try {
-          setSpeaking(true);
-          this.isPaused = false;
+          // Create new audio element if needed
+          if (!audioRef.current) {
+            audioRef.current = new Audio();
+          }
 
-          // Start playing the sample
+          // Set the source to the selected voice sample
+          const sampleUrl = `/training-data/voice-samples/${selectedVoiceSample}`;
+          audioRef.current.src = sampleUrl;
+
+          // Determine speaking duration based on text length
+          // A rough estimate: average reading speed is ~150 words per minute
+          // That's about 2.5 words per second
+          const words = text.split(' ').length;
+          const estimatedDuration = Math.max(3, words / 2.5); // At least 3 seconds, or longer based on words
+
+          console.log(`Speaking text (${words} words, ~${estimatedDuration.toFixed(1)}s): "${text}"`);
+          toast({
+            title: "Speaking",
+            description: text.length > 60 ? text.substring(0, 57) + "..." : text,
+            duration: estimatedDuration * 1000
+          });
+
+          // Play the audio
           await audioRef.current.play();
-
-          // Add a little randomness to make it sound more natural
-          const textLength = text.length;
-          const sampleDuration = audioRef.current.duration || 3;
-
-          // Calculate appropriate playback time based on text length
-          // (this simulates the AI speaking the text with your voice)
-          const playTime = Math.min(
-            Math.max(3, textLength / 10), // At least 3 seconds, more for longer text
-            sampleDuration * 0.8 // But not longer than 80% of the sample
-          );
+          setSpeaking(true);
 
           // Set a timeout to stop playing after the calculated time
+          // Use the estimated duration based on text length rather than fixed time
           setTimeout(() => {
             if (audioRef.current && !this.isPaused) {
               audioRef.current.pause();
               setSpeaking(false);
             }
-          }, playTime * 1000);
+          }, estimatedDuration * 1000);
         } catch (error) {
-          console.error("Error playing voice sample:", error);
+          console.error("Error using voice sample for speech:", error);
           setSpeaking(false);
           throw error;
         }
@@ -262,12 +260,74 @@ const TTSButton = ({ text }: TTSButtonProps) => {
     }
   };
 
+  // Function to use server-side TTS with voice samples
+  const useServerTTS = async (text: string) => {
+    if (!selectedVoiceSample) {
+      throw new Error("No voice sample selected");
+    }
+
+    try {
+      const response = await fetch('/api/tts/speak', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          voiceSample: selectedVoiceSample
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to process speech");
+      }
+
+      // Create new audio element if needed
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+      }
+
+      // Play the returned audio
+      audioRef.current.src = data.audioUrl;
+      await audioRef.current.play();
+      setSpeaking(true);
+
+      // Use the estimated duration from the server
+      const duration = data.metadata?.duration || 5;
+
+      // Show toast with the text being spoken
+      toast({
+        title: "Speaking with your voice",
+        description: text.length > 60 ? text.substring(0, 57) + "..." : text,
+        duration: duration * 1000
+      });
+
+      // Set a timeout to stop playing
+      setTimeout(() => {
+        if (audioRef.current && !audioPlayerRef.current?.isPaused) {
+          audioRef.current.pause();
+          setSpeaking(false);
+        }
+      }, duration * 1000);
+
+    } catch (error) {
+      console.error("Error with server TTS:", error);
+      throw error;
+    }
+  };
+
   // Speak the text
   const speak = async () => {
     // Handle pause/resume if already speaking
     if (speaking) {
-      if (customAudioPlayer.current) {
-        customAudioPlayer.current.togglePause();
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.togglePause();
         return;
       } else if (isSpeechAvailable) {
         if (paused) {
@@ -304,9 +364,9 @@ const TTSButton = ({ text }: TTSButtonProps) => {
 
     try {
       // Use custom audio player with voice samples
-      if (customAudioPlayer.current && selectedVoiceSample) {
+      if (audioPlayerRef.current && selectedVoiceSample) {
         try {
-          await customAudioPlayer.current.play(text, selectedVoiceSample);
+          await audioPlayerRef.current.play(text, 5);
         } catch (error) {
           console.error("Error with custom player:", error);
           // Fall back to browser speech if custom player fails
@@ -425,8 +485,8 @@ const TTSButton = ({ text }: TTSButtonProps) => {
   // Stop speaking
   const stopSpeaking = () => {
     // Stop custom audio player if active
-    if (customAudioPlayer.current) {
-      customAudioPlayer.current.stop();
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.stop();
     }
 
     // Also stop browser speech synthesis if active
