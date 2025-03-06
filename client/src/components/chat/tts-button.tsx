@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Volume2, VolumeOff } from "lucide-react";
-import Speech from 'speak-tts';
+import { useToast } from "@/hooks/use-toast";
 
 interface TTSButtonProps {
   text: string;
@@ -9,46 +9,50 @@ interface TTSButtonProps {
 
 export function TTSButton({ text }: TTSButtonProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speech, setSpeech] = useState<Speech>();
+  const { toast } = useToast();
+  const [utterance, setUtterance] = useState<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
-    const speechInstance = new Speech();
-    speechInstance
-      .init({
-        volume: 1,
-        lang: "en-US",
-        rate: 1,
-        pitch: 1,
-        voice: 'Samantha',
-        splitSentences: true,
-      })
-      .then(() => {
-        setSpeech(speechInstance);
-      })
-      .catch(e => {
-        console.error("An error occurred while initializing TTS:", e);
+    // Create utterance instance
+    const newUtterance = new SpeechSynthesisUtterance(text);
+    newUtterance.lang = 'en-US';
+    newUtterance.rate = 1;
+    newUtterance.pitch = 1;
+    newUtterance.volume = 1;
+
+    // Add event listeners
+    newUtterance.onend = () => setIsPlaying(false);
+    newUtterance.onerror = (event) => {
+      console.error('TTS Error:', event);
+      setIsPlaying(false);
+      toast({
+        title: "Speech Error",
+        description: "Could not play text-to-speech",
+        variant: "destructive"
       });
-  }, []);
+    };
+
+    setUtterance(newUtterance);
+
+    // Cleanup
+    return () => {
+      if (isPlaying) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [text]);
 
   const handleSpeak = () => {
-    if (!speech) return;
+    if (!utterance) return;
 
     if (isPlaying) {
-      speech.cancel();
+      window.speechSynthesis.cancel();
       setIsPlaying(false);
     } else {
-      speech.speak({
-        text,
-        queue: false,
-        listeners: {
-          onstart: () => setIsPlaying(true),
-          onend: () => setIsPlaying(false),
-          onerror: (err) => {
-            console.error("TTS Error:", err);
-            setIsPlaying(false);
-          },
-        },
-      });
+      // Ensure we're starting fresh
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+      setIsPlaying(true);
     }
   };
 
