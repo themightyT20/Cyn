@@ -30,18 +30,84 @@ export async function registerRoutes(app: express.Express) {
   // Get list of voice samples
   router.get("/api/tts/voices", async (_req: Request, res: Response) => {
     try {
+      // Check if directory exists
+      let directoryExists = false;
+      try {
+        await fs.access(TRAINING_DATA_DIR);
+        directoryExists = true;
+      } catch (e) {
+        console.log(`Voice samples directory doesn't exist: ${TRAINING_DATA_DIR}`);
+      }
+
+      if (!directoryExists) {
+        // Create directory if it doesn't exist
+        await fs.mkdir(TRAINING_DATA_DIR, { recursive: true });
+        console.log(`Created voice samples directory: ${TRAINING_DATA_DIR}`);
+      }
+
       const files = await fs.readdir(TRAINING_DATA_DIR);
       const voiceFiles = files.filter(file => file.endsWith('.wav'));
 
+      console.log(`Found ${voiceFiles.length} voice samples in ${TRAINING_DATA_DIR}`);
+      
       res.json({
         success: true,
-        samples: voiceFiles
+        samples: voiceFiles,
+        directory: TRAINING_DATA_DIR
       });
     } catch (error) {
       console.error("Error getting voice samples:", error);
       res.status(500).json({ 
         success: false, 
-        message: "Error retrieving voice samples" 
+        message: "Error retrieving voice samples",
+        error: String(error)
+      });
+    }
+  });
+
+  // Add TTS debug endpoint to verify voice samples and configuration
+  router.get("/api/tts/debug", async (_req: Request, res: Response) => {
+    try {
+      const directories = [
+        TRAINING_DATA_DIR,
+        path.join(__dirname, '..', 'uploads', 'voice-samples')
+      ];
+      
+      const results = {};
+      
+      for (const dir of directories) {
+        try {
+          const exists = await fs.access(dir).then(() => true).catch(() => false);
+          if (exists) {
+            const files = await fs.readdir(dir);
+            const voiceFiles = files.filter(file => file.endsWith('.wav'));
+            results[dir] = {
+              exists: true,
+              fileCount: files.length,
+              voiceFiles: voiceFiles
+            };
+          } else {
+            results[dir] = { exists: false };
+          }
+        } catch (err) {
+          results[dir] = { exists: false, error: String(err) };
+        }
+      }
+      
+      res.json({
+        success: true,
+        diagnosticResults: results,
+        nodeVersion: process.version,
+        platform: process.platform,
+        architecture: process.arch,
+        audioEnabled: process.env.AUDIO_ENABLED === 'true'
+      });
+    } catch (error) {
+      console.error("Error in TTS debug endpoint:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error running TTS diagnostics",
+        error: String(error)
       });
     }
   });
