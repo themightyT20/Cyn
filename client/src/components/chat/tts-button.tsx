@@ -170,50 +170,38 @@ export function TTSButton({ text, className }: TTSButtonProps) {
     setTtsError(null);
 
     try {
-      // Use server TTS endpoint instead of browser TTS
+      console.log("Sending TTS request with voice sample:", selectedVoiceSample);
+
+      // Make API request to server-side TTS
       const response = await fetch('/api/tts/speak', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json', // Explicitly request JSON response
+          'Accept': 'application/json'
         },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           text,
           voiceSample: selectedVoiceSample
-        }),
+        })
       });
 
-      // Handle non-OK responses first
-      if (!response.ok) {
-        // Try to get more details about the error
-        try {
-          // Check content type to see if we can parse JSON
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Server error: ${response.status}`);
-          } else {
-            // For non-JSON responses, get the text but limit it to avoid huge errors
-            const errorText = await response.text();
-            throw new Error(`Server error ${response.status}: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
-          }
-        } catch (parseError) {
-          // If we can't parse the response at all
-          throw new Error(`Server responded with status ${response.status}`);
-        }
-      }
-
-      // Check content type before attempting to parse as JSON
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
+      let data;
+      try {
+        // Try to parse as JSON first
+        data = await response.json();
+        console.log("TTS response:", data);
+      } catch (parseError) {
+        // If JSON parsing fails, get the text and log it
         const errorText = await response.text();
-        throw new Error(`Invalid content type: ${contentType}, Response: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
+        console.error("Failed to parse TTS response as JSON:", errorText);
+        throw new Error(`Invalid response format. Server returned: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
       }
 
-      const data = await response.json();
-      console.log("TTS response:", data);
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || `Server responded with error ${response.status}`);
+      }
 
-      if (data.success && data.audioUrl) {
+      if (data.audioUrl) {
         // Add a timestamp to bust cache
         const cacheBuster = `?t=${Date.now()}`;
         const audioUrl = `${data.audioUrl}${cacheBuster}`;

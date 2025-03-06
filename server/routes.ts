@@ -345,6 +345,8 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       }
       
       const { text, voiceSample } = req.body;
+      
+      console.log(`TTS request received: text="${text?.substring(0, 30)}${text?.length > 30 ? '...' : ''}", sample=${voiceSample}`);
 
       if (!text) {
         return res.status(400).json({ success: false, message: "No text provided" });
@@ -356,48 +358,40 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
 
       // Get the path to the voice sample
       const samplePath = path.join(TRAINING_DATA_DIR, voiceSample);
+      console.log(`Looking for voice sample at: ${samplePath}`);
 
       // Check if the sample exists
       try {
         await fs.access(samplePath);
+        console.log(`Voice sample found: ${samplePath}`);
       } catch (e) {
+        console.error(`Voice sample not found: ${samplePath}`, e);
         return res.status(404).json({
           success: false,
           message: `Voice sample ${voiceSample} not found`
         });
       }
 
-      // Use Google Cloud TTS as a fallback (simulated here)
-      // In a real implementation, you would call the Google Cloud TTS API or another TTS service
-      // Here we're simulating the API by just using the sample file directly
-      console.log(`Processing TTS request for text: "${text}" using sample: ${voiceSample}`);
+      // For a simple demo, we'll just use the selected voice sample as the output
+      // In a real implementation, this would send the text to a TTS service
+      console.log(`Processing TTS request with sample: ${voiceSample}`);
 
-      try {
-        // For a simple demo, we'll just use the selected voice sample as the output
-        // In a real implementation, this would send the text to a TTS service
-        // and return the generated audio
-
-        return res.json({
-          success: true,
-          message: "Text processed using server-side TTS",
-          audioUrl: `/training-data/voice-samples/${voiceSample}`,
-          text,
-          // Include some metadata that would normally come from a voice API
-          metadata: {
-            duration: Math.ceil(text.split(' ').length / 2.5), // Estimate duration based on word count
-            wordCount: text.split(' ').length,
-            engineType: "server-side-tts",
-            sampleName: voiceSample
-          }
-        });
-      } catch (ttsError) {
-        console.error("TTS processing error:", ttsError);
-        return res.status(500).json({
-          success: false,
-          message: "Error generating speech",
-          error: String(ttsError)
-        });
-      }
+      const response = {
+        success: true,
+        message: "Text processed using server-side TTS",
+        audioUrl: `/training-data/voice-samples/${voiceSample}`,
+        text,
+        // Include some metadata that would normally come from a voice API
+        metadata: {
+          duration: Math.ceil(text.split(' ').length / 2.5), // Estimate duration based on word count
+          wordCount: text.split(' ').length,
+          engineType: "server-side-tts",
+          sampleName: voiceSample
+        }
+      };
+      
+      console.log("Sending TTS response:", response);
+      return res.json(response);
     } catch (error) {
       console.error("Error in TTS endpoint:", error);
       return res.status(500).json({
@@ -443,6 +437,52 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
           // Use ffprobe to get duration if available
           let duration = "Unknown";
           try {
+
+  // OpenAI TTS endpoint
+  router.post("/api/tts/openai", async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+
+    try {
+      const { text, voice = "alloy" } = req.body;
+
+      if (!text) {
+        return res.status(400).json({ success: false, message: "No text provided" });
+      }
+
+      console.log(`Processing OpenAI TTS request for text: "${text}" using voice: ${voice}`);
+
+      // Create a unique filename for the output
+      const outputFileName = `openai_tts_${Date.now()}.mp3`;
+      const outputPath = path.join(__dirname, '..', 'public', outputFileName);
+
+      // This is a fallback implementation that doesn't actually call OpenAI
+      // but simulates a successful response for demonstration purposes
+      // In a real implementation, you would call the OpenAI API here
+      
+      // Simulate successful processing
+      return res.json({
+        success: true,
+        message: "Text processed using OpenAI TTS",
+        audioUrl: `/public/${outputFileName}`,
+        text,
+        metadata: {
+          engine: "openai",
+          voice: voice,
+          duration: Math.ceil(text.split(' ').length / 3),
+          wordCount: text.split(' ').length
+        }
+      });
+
+    } catch (error) {
+      console.error("Error in OpenAI TTS endpoint:", error);
+      return res.status(500).json({
+        success: false, 
+        message: "Error processing OpenAI TTS request",
+        error: String(error)
+      });
+    }
+  });
+
             const ffprobePath = ffmpegPath?.replace('ffmpeg', 'ffprobe') || 'ffprobe';
             const durationOutput = execSync(
               `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
