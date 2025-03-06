@@ -6,12 +6,32 @@ import { fileURLToPath } from "url";
 import { storage } from "./storage";
 import { log } from "./vite";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import fileUpload from "express-fileupload";
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
+import WaveFile from 'wavefile';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Create uploads directory if it doesn't exist
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
+const VOICE_SAMPLES_DIR = path.join(UPLOAD_DIR, 'voice-samples');
+
+async function ensureDirectories() {
+  await fs.mkdir(UPLOAD_DIR, { recursive: true });
+  await fs.mkdir(VOICE_SAMPLES_DIR, { recursive: true });
+}
+
+ensureDirectories();
+
 export async function registerRoutes(app: express.Express) {
   const router = Router();
+
+  // Enable file uploads
+  app.use(fileUpload({
+    createParentPath: true,
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
+  }));
 
   // Get all messages
   router.get("/api/messages", async (_req: Request, res: Response) => {
@@ -292,7 +312,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         // If all else fails, return the error
         return res.status(500).json({ 
           success: false, 
-          error: error instanceof Error ? error.message : "An unexpected error occurred" 
+          error: backupError instanceof Error ? backupError.message : "An unexpected error occurred" 
         });
       }
     }
@@ -407,6 +427,139 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     } catch (error) {
       console.error("Error clearing memory:", error);
       res.status(500).json({ message: "Error clearing memory" });
+    }
+  });
+
+
+  // Upload voice sample for training
+  router.post("/api/tts/upload-sample", async (req: Request, res: Response) => {
+    try {
+      if (!req.files || !req.files.audio) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "No audio file uploaded" 
+        });
+      }
+
+      const audioFile = req.files.audio;
+      const voiceId = req.body.voiceId || nanoid();
+
+      // Ensure it's a WAV file
+      if (!Array.isArray(audioFile) && audioFile.mimetype !== 'audio/wav') {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Only WAV files are supported" 
+        });
+      }
+
+      // Create voice sample directory
+      const voicePath = path.join(VOICE_SAMPLES_DIR, voiceId);
+      await fs.mkdir(voicePath, { recursive: true });
+
+      // Generate unique filename
+      const filename = `sample_${Date.now()}.wav`;
+      const filepath = path.join(voicePath, filename);
+
+      // Save file
+      if (!Array.isArray(audioFile)) {
+        await audioFile.mv(filepath);
+
+        // Process WAV file to ensure correct format
+        const wav = new WaveFile(await fs.readFile(filepath));
+        wav.toBitDepth("16"); // Convert to 16-bit
+        wav.toSampleRate(22050); // Convert to 22.05kHz
+        await fs.writeFile(filepath, wav.toBuffer());
+
+        res.json({
+          success: true,
+          voiceId: voiceId,
+          message: "Voice sample uploaded successfully",
+          sampleCount: (await fs.readdir(voicePath)).length
+        });
+      }
+    } catch (error) {
+      console.error("Error uploading voice sample:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error processing voice sample",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Get list of trained voices
+  router.get("/api/tts/voices", async (_req: Request, res: Response) => {
+    try {
+      const voices = await fs.readdir(VOICE_SAMPLES_DIR);
+      const voiceDetails = await Promise.all(voices.map(async (voiceId) => {
+        const samples = await fs.readdir(path.join(VOICE_SAMPLES_DIR, voiceId));
+        return {
+          voiceId,
+          sampleCount: samples.length,
+          lastUpdated: (await fs.stat(path.join(VOICE_SAMPLES_DIR, voiceId))).mtime
+        };
+      }));
+
+      res.json({
+        success: true,
+        voices: voiceDetails
+      });
+    } catch (error) {
+      console.error("Error getting voice list:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error retrieving voice list" 
+      });
+    }
+  });
+
+  // Generate TTS with specific voice
+  router.post("/api/tts/generate", async (req: Request, res: Response) => {
+    try {
+      const { text, voiceId } = req.body;
+
+      if (!text) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Text is required" 
+        });
+      }
+
+      // Check if voice exists
+      const voicePath = path.join(VOICE_SAMPLES_DIR, voiceId);
+      if (!existsSync(voicePath)) {
+        return res.status(404).json({ 
+          success: false, 
+          message: "Voice not found" 
+        });
+      }
+
+      // Initialize Google Cloud TTS client
+      const client = new TextToSpeechClient();
+
+      // For now, use standard Google TTS voice
+      // TODO: Implement custom voice training integration
+      const [response] = await client.synthesizeSpeech({
+        input: { text },
+        voice: { languageCode: 'en-US', name: 'en-US-Standard-A' },
+        audioConfig: { audioEncoding: 'MP3' },
+      });
+
+      const audioContent = response.audioContent;
+      if (!audioContent) {
+        throw new Error("No audio content generated");
+      }
+
+      // Send audio response
+      res.set('Content-Type', 'audio/mp3');
+      res.send(Buffer.from(audioContent));
+    } catch (error) {
+      console.error("Error generating TTS:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error generating speech",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
