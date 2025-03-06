@@ -1,107 +1,20 @@
 import express, { Request, Response, Router } from "express";
 import { nanoid } from "nanoid";
-import { existsSync, promises as fs } from "fs";
+import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { storage } from "./storage";
 import { log } from "./vite";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import fileUpload from "express-fileupload";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create uploads directory if it doesn't exist
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
-
-async function ensureDirectories() {
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
-}
-
-ensureDirectories();
+// Define training data directory
+const TRAINING_DATA_DIR = path.join(__dirname, '..', 'training-data', 'voice-samples');
 
 export async function registerRoutes(app: express.Express) {
   const router = Router();
-
-  // Enable file uploads
-  app.use(fileUpload({
-    createParentPath: true,
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max file size
-  }));
-
-  // Upload voice sample for training
-  router.post("/api/tts/upload-sample", async (req: Request, res: Response) => {
-    try {
-      if (!req.files || !req.files.audio) {
-        return res.status(400).json({ 
-          success: false, 
-          message: "No audio file uploaded" 
-        });
-      }
-
-      const audioFile = req.files.audio;
-      const voiceId = req.body.voiceId || nanoid();
-
-      // Ensure it's a WAV file
-      if (!Array.isArray(audioFile) && audioFile.mimetype !== 'audio/wav') {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Only WAV files are supported" 
-        });
-      }
-
-      // Create voice sample directory
-      const voicePath = path.join(UPLOAD_DIR, voiceId); //removed VOICE_SAMPLES_DIR
-      await fs.mkdir(voicePath, { recursive: true });
-
-      // Generate unique filename
-      const filename = `sample_${Date.now()}.wav`;
-      const filepath = path.join(voicePath, filename);
-
-      // Save file
-      if (!Array.isArray(audioFile)) {
-        try {
-          await audioFile.mv(filepath);
-
-          // Basic file validation
-          const stats = await fs.stat(filepath);
-          if (stats.size === 0) {
-            await fs.unlink(filepath);
-            throw new Error("Invalid WAV file: File is empty");
-          }
-
-          // Check if it's a valid WAV file by reading first 4 bytes
-          const buffer = await fs.readFile(filepath);
-          const header = buffer.slice(0, 4).toString();
-          if (header !== 'RIFF') {
-            await fs.unlink(filepath);
-            throw new Error("Invalid WAV file: Missing RIFF header");
-          }
-
-          res.json({
-            success: true,
-            voiceId: voiceId,
-            message: "Voice sample uploaded successfully",
-            sampleCount: (await fs.readdir(voicePath)).length
-          });
-        } catch (error) {
-          console.error("Error processing WAV file:", error);
-          // Clean up the uploaded file if processing fails
-          if (existsSync(filepath)) {
-            await fs.unlink(filepath);
-          }
-          throw error;
-        }
-      }
-    } catch (error) {
-      console.error("Error uploading voice sample:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Error processing voice sample",
-        error: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
 
   // Get all messages
   router.get("/api/messages", async (_req: Request, res: Response) => {
@@ -113,6 +26,26 @@ export async function registerRoutes(app: express.Express) {
       res.status(500).json({ message: "Error fetching messages" });
     }
   });
+
+  // Get list of voice samples
+  router.get("/api/tts/voices", async (_req: Request, res: Response) => {
+    try {
+      const files = await fs.readdir(TRAINING_DATA_DIR);
+      const voiceFiles = files.filter(file => file.endsWith('.wav'));
+
+      res.json({
+        success: true,
+        samples: voiceFiles
+      });
+    } catch (error) {
+      console.error("Error getting voice samples:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error retrieving voice samples" 
+      });
+    }
+  });
+
 
   // Add a new message and get AI response
   router.post("/api/messages", async (req: Request, res: Response) => {
@@ -492,32 +425,6 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     }
   });
 
-
-  // Get list of trained voices
-  router.get("/api/tts/voices", async (_req: Request, res: Response) => {
-    try {
-      const voices = await fs.readdir(UPLOAD_DIR); //changed to UPLOAD_DIR
-      const voiceDetails = await Promise.all(voices.map(async (voiceId) => {
-        const samples = await fs.readdir(path.join(UPLOAD_DIR, voiceId)); //changed to UPLOAD_DIR
-        return {
-          voiceId,
-          sampleCount: samples.length,
-          lastUpdated: (await fs.stat(path.join(UPLOAD_DIR, voiceId))).mtime //changed to UPLOAD_DIR
-        };
-      }));
-
-      res.json({
-        success: true,
-        voices: voiceDetails
-      });
-    } catch (error) {
-      console.error("Error getting voice list:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Error retrieving voice list" 
-      });
-    }
-  });
 
   app.use(router);
   return app.listen();
