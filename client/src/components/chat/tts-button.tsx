@@ -162,19 +162,7 @@ export function TTSButton({ text, className }: TTSButtonProps) {
   // Handle speak button click
   const handleSpeak = async () => {
     if (isPlaying) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      }
-      return;
-    }
-
-    if (!selectedVoiceSample) {
-      toast({
-        title: "No voice sample selected",
-        description: "Please select a voice sample first",
-        variant: "destructive"
-      });
+      stopAudio();
       return;
     }
 
@@ -187,6 +175,7 @@ export function TTSButton({ text, className }: TTSButtonProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json', // Explicitly request JSON response
         },
         body: JSON.stringify({
           text,
@@ -194,15 +183,31 @@ export function TTSButton({ text, className }: TTSButtonProps) {
         }),
       });
 
+      // Handle non-OK responses first
+      if (!response.ok) {
+        // Try to get more details about the error
+        try {
+          // Check content type to see if we can parse JSON
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `Server error: ${response.status}`);
+          } else {
+            // For non-JSON responses, get the text but limit it to avoid huge errors
+            const errorText = await response.text();
+            throw new Error(`Server error ${response.status}: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
+          }
+        } catch (parseError) {
+          // If we can't parse the response at all
+          throw new Error(`Server responded with status ${response.status}`);
+        }
+      }
+
       // Check content type before attempting to parse as JSON
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         const errorText = await response.text();
-        throw new Error(`Invalid content type: ${contentType}, Response: ${errorText.substring(0, 100)}`);
-      }
-
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
+        throw new Error(`Invalid content type: ${contentType}, Response: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
       }
 
       const data = await response.json();

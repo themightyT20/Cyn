@@ -339,6 +339,11 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     res.setHeader('Content-Type', 'application/json');
 
     try {
+      // Check if req.body exists and has expected properties
+      if (!req.body) {
+        return res.status(400).json({ success: false, message: "Invalid request body" });
+      }
+      
       const { text, voiceSample } = req.body;
 
       if (!text) {
