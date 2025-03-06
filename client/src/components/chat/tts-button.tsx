@@ -194,8 +194,15 @@ export function TTSButton({ text, className }: TTSButtonProps) {
         }),
       });
 
+      // Check if the response is valid before trying to parse it
       if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Server error: ${response.status} - ${errorText.substring(0, 100)}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Invalid content type: ${contentType}`);
       }
 
       const data = await response.json();
