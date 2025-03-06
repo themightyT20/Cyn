@@ -46,17 +46,27 @@ export async function registerRoutes(app: express.Express) {
       }
 
       const files = await fs.readdir(TRAINING_DATA_DIR);
-      const voiceFiles = files.filter(file => file.endsWith('.wav'));
+      const voiceFiles = files.filter(file => file.endsWith('.wav') && !file.endsWith('_original.wav.bak'));
       
       // Get file sizes
       const fileSizes = {};
+      const fileInfo = [];
       for (const file of voiceFiles) {
         try {
           const filePath = path.join(TRAINING_DATA_DIR, file);
           const stats = await fs.stat(filePath);
+          const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+          
+          fileInfo.push({
+            file,
+            size: fileSizeMB + ' MB',
+            path: filePath,
+            isChunk: file.includes('_chunk_')
+          });
+          
           fileSizes[file] = {
             size: stats.size,
-            sizeInMB: (stats.size / (1024 * 1024)).toFixed(2),
+            sizeInMB: fileSizeMB,
             isLarge: stats.size > 10 * 1024 * 1024 // Flag if larger than 10MB
           };
         } catch (err) {
@@ -65,12 +75,12 @@ export async function registerRoutes(app: express.Express) {
       }
 
       console.log(`Found ${voiceFiles.length} voice samples in ${TRAINING_DATA_DIR}`);
-      console.log('Voice sample sizes:', fileSizes);
       
       res.json({
         success: true,
         samples: voiceFiles,
         fileSizes: fileSizes,
+        fileInfo: fileInfo,
         directory: TRAINING_DATA_DIR
       });
     } catch (error) {
@@ -82,6 +92,9 @@ export async function registerRoutes(app: express.Express) {
       });
     }
   });
+
+  // Serve voice sample files directly
+  router.use('/training-data/voice-samples', express.static(TRAINING_DATA_DIR));
 
   // Add TTS debug endpoint to verify voice samples and configuration
   router.get("/api/tts/debug", async (_req: Request, res: Response) => {
