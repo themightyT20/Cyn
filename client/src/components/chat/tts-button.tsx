@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { Volume2, VolumeOff, AlertCircle, RefreshCw } from "lucide-react";
+import { Volume2, AlertCircle, RefreshCw, Loader } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import Loader2 from "@/components/ui/loader2";
-
 
 interface TTSButtonProps {
   text?: string;
@@ -491,7 +489,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
               >
                 {isCheckingVoices ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
                     Checking...
                   </>
                 ) : "Check Voice Samples"}
@@ -523,7 +521,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
                   >
                     {isBusy ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <Loader className="mr-2 h-4 w-4 animate-spin" />
                         Processing...
                       </>
                     ) : "Split Large Samples"}
