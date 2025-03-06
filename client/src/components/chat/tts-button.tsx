@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Volume2, VolumeOff, AlertCircle } from "lucide-react";
@@ -21,6 +20,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
   const [ttsError, setTtsError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [utterance, setUtterance] = useState<SpeechSynthesisUtterance | null>(null);
+  const [isBusy, setIsBusy] = useState(false); // Added state for button disabling
   const { toast } = useToast();
   const hasInitialized = useRef(false);
 
@@ -55,7 +55,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
         // Check for large voice samples
         let largeFilesFound = false;
         let largeFileNames = [];
-        
+
         if (data.fileSizes) {
           Object.entries(data.fileSizes).forEach(([fileName, fileInfo]: [string, any]) => {
             if (fileInfo.isLarge) {
@@ -64,7 +64,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
             }
           });
         }
-        
+
         if (largeFilesFound) {
           const message = `Warning: Found large voice samples (>10MB): ${largeFileNames.join(', ')}. This may cause issues with speech synthesis. Consider using shorter samples (30-60 seconds).`;
           console.warn(message);
@@ -118,7 +118,7 @@ const TTSButton = ({ text }: TTSButtonProps) => {
   // Text-to-speech functionality
   useEffect(() => {
     if (!text) return;
-    
+
     // Create utterance instance
     const newUtterance = new SpeechSynthesisUtterance(text);
     newUtterance.lang = 'en-US';
@@ -173,6 +173,33 @@ const TTSButton = ({ text }: TTSButtonProps) => {
     toast({
       title: !isTTSEnabled ? "Text-to-speech enabled" : "Text-to-speech disabled",
     });
+  };
+
+  const handleSplitSamples = async () => {
+    try {
+      setIsBusy(true);
+      const response = await fetch('/api/tts/split-samples', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: "Voice samples split successfully",
+          description: `Split ${data.processed.length} large voice samples into smaller chunks.`,
+        });
+        // Refresh the voice samples list
+        checkVoiceSamples();
+      } else {
+        setTtsError(`Failed to split voice samples: ${data.message}`);
+      }
+    } catch (error) {
+      console.error("Error splitting voice samples:", error);
+      setTtsError(`Error splitting voice samples: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsBusy(false);
+    }
   };
 
   // If this is being used as a text player button (in message bubble)

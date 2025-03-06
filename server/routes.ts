@@ -284,6 +284,38 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         })
       ];
 
+  // Split large voice samples into smaller chunks
+  router.post("/api/tts/split-samples", async (_req: Request, res: Response) => {
+    try {
+      // Import the splitter function dynamically to avoid circular dependencies
+      const { splitLargeVoiceSamples } = await import('./voice-sample-splitter');
+      const result = await splitLargeVoiceSamples();
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: `Successfully processed ${result.processed.length} large voice samples`,
+          processed: result.processed
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: result.message || "Failed to process voice samples",
+          error: result.error
+        });
+      }
+    } catch (error) {
+      console.error("Error splitting voice samples:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Error splitting voice samples",
+        error: String(error)
+      });
+    }
+  });
+
+
+
       // Also include Results if available (sometimes DuckDuckGo puts important info here)
       if (data.Results && Array.isArray(data.Results) && data.Results.length > 0) {
         const additionalResults = data.Results.map((result: any) => ({
