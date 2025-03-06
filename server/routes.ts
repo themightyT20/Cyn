@@ -7,18 +7,15 @@ import { storage } from "./storage";
 import { log } from "./vite";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import fileUpload from "express-fileupload";
-import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Create uploads directory if it doesn't exist
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
-const VOICE_SAMPLES_DIR = path.join(UPLOAD_DIR, 'voice-samples');
 
 async function ensureDirectories() {
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
-  await fs.mkdir(VOICE_SAMPLES_DIR, { recursive: true });
 }
 
 ensureDirectories();
@@ -54,7 +51,7 @@ export async function registerRoutes(app: express.Express) {
       }
 
       // Create voice sample directory
-      const voicePath = path.join(VOICE_SAMPLES_DIR, voiceId);
+      const voicePath = path.join(UPLOAD_DIR, voiceId); //removed VOICE_SAMPLES_DIR
       await fs.mkdir(voicePath, { recursive: true });
 
       // Generate unique filename
@@ -147,7 +144,6 @@ export async function registerRoutes(app: express.Express) {
 
       // Get AI response using the correct Gemini model
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      // Use gemini-1.5-pro-latest model
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
       console.log("Generating AI response for:", content);
@@ -157,17 +153,13 @@ export async function registerRoutes(app: express.Express) {
       let exampleConversations = [];
 
       if (cynData) {
-        // Extract character info and example conversations
         const { character, conversations, response_guidelines } = cynData;
-
-        // Build a rich system prompt based on Cyn's character
         systemPrompt = `You are ${character.name}, ${character.personality}. ${character.background}. 
 Your tone is ${character.tone}.
 Your traits include: ${character.traits.join(', ')}.
 Follow these guidelines: ${response_guidelines.general_approach}
 Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
 
-        // Use the example conversations for few-shot learning
         exampleConversations = conversations.map(conv => ({
           role: "user",
           parts: [{ text: conv.user }]
@@ -202,11 +194,8 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
         }
       }
 
-      // In Gemini API, we can't use a direct "role: system" parameter
-      // Instead, we need to prepend the system prompt to the user's message
       const promptWithSystem = `${systemPrompt}${memoryPrompt}\n\nYou can remember new information about the user by including [MEMORY:key=value] anywhere in your response. This won't be shown to the user.\n\nUser message: ${content}`;
       const result = await chat.sendMessage(promptWithSystem);
-
       const response = await result.response;
 
       // Extract and process memory instructions from the response
@@ -224,7 +213,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       // Remove memory instructions from the final response
       responseText = responseText.replace(memoryRegex, "");
 
-      // Save AI response (without memory instructions)
+      // Save AI response
       const aiMessage = await storage.addMessage({
         content: responseText.trim(),
         role: "assistant",
@@ -507,13 +496,13 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
   // Get list of trained voices
   router.get("/api/tts/voices", async (_req: Request, res: Response) => {
     try {
-      const voices = await fs.readdir(VOICE_SAMPLES_DIR);
+      const voices = await fs.readdir(UPLOAD_DIR); //changed to UPLOAD_DIR
       const voiceDetails = await Promise.all(voices.map(async (voiceId) => {
-        const samples = await fs.readdir(path.join(VOICE_SAMPLES_DIR, voiceId));
+        const samples = await fs.readdir(path.join(UPLOAD_DIR, voiceId)); //changed to UPLOAD_DIR
         return {
           voiceId,
           sampleCount: samples.length,
-          lastUpdated: (await fs.stat(path.join(VOICE_SAMPLES_DIR, voiceId))).mtime
+          lastUpdated: (await fs.stat(path.join(UPLOAD_DIR, voiceId))).mtime //changed to UPLOAD_DIR
         };
       }));
 
@@ -526,51 +515,6 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
       res.status(500).json({ 
         success: false, 
         message: "Error retrieving voice list" 
-      });
-    }
-  });
-
-  // Update only the TTS generation endpoint
-  router.post("/api/tts/generate", async (req: Request, res: Response) => {
-    try {
-      const { text } = req.body;
-
-      if (!text) {
-        return res.status(400).json({ 
-          success: false, 
-          message: "Text is required" 
-        });
-      }
-
-      // Initialize Google Cloud TTS client
-      const client = new TextToSpeechClient();
-
-      // Generate speech using standard voice
-      const [response] = await client.synthesizeSpeech({
-        input: { text },
-        voice: { languageCode: 'en-US', ssmlGender: 'FEMALE' },
-        audioConfig: { 
-          audioEncoding: 'MP3',
-          speakingRate: 1.0,
-          pitch: 0,
-          volumeGainDb: 0
-        },
-      });
-
-      if (!response.audioContent) {
-        throw new Error("No audio content generated");
-      }
-
-      // Send audio response
-      res.set('Content-Type', 'audio/mp3');
-      res.send(Buffer.from(response.audioContent));
-
-    } catch (error) {
-      console.error("Error generating TTS:", error);
-      res.status(500).json({ 
-        success: false, 
-        message: "Error generating speech",
-        error: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Volume2, VolumeOff } from "lucide-react";
+import Speech from 'speak-tts';
 
 interface TTSButtonProps {
   text: string;
@@ -8,40 +9,46 @@ interface TTSButtonProps {
 
 export function TTSButton({ text }: TTSButtonProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [speech, setSpeech] = useState<Speech>();
 
-  const handleSpeak = async () => {
-    if (isPlaying && audioElement) {
-      audioElement.pause();
-      setIsPlaying(false);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/tts/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text }),
+  useEffect(() => {
+    const speechInstance = new Speech();
+    speechInstance
+      .init({
+        volume: 1,
+        lang: "en-US",
+        rate: 1,
+        pitch: 1,
+        voice: 'Samantha',
+        splitSentences: true,
+      })
+      .then(() => {
+        setSpeech(speechInstance);
+      })
+      .catch(e => {
+        console.error("An error occurred while initializing TTS:", e);
       });
+  }, []);
 
-      if (!response.ok) {
-        throw new Error('Failed to generate speech');
-      }
+  const handleSpeak = () => {
+    if (!speech) return;
 
-      const audio = new Audio(URL.createObjectURL(await response.blob()));
-
-      audio.onended = () => {
-        setIsPlaying(false);
-        setAudioElement(null);
-      };
-
-      setAudioElement(audio);
-      audio.play();
-      setIsPlaying(true);
-    } catch (error) {
-      console.error('Error generating speech:', error);
+    if (isPlaying) {
+      speech.cancel();
+      setIsPlaying(false);
+    } else {
+      speech.speak({
+        text,
+        queue: false,
+        listeners: {
+          onstart: () => setIsPlaying(true),
+          onend: () => setIsPlaying(false),
+          onerror: (err) => {
+            console.error("TTS Error:", err);
+            setIsPlaying(false);
+          },
+        },
+      });
     }
   };
 
