@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Volume2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -12,321 +12,140 @@ interface TTSButtonProps {
 export function TTSButton({ text, className }: TTSButtonProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [voiceSamples, setVoiceSamples] = useState<string[]>([]);
-  const [selectedVoiceSample, setSelectedVoiceSample] = useState<string>("");
-  const [ttsError, setTtsError] = useState<string | null>(null);
-  const [isCheckingVoices, setIsCheckingVoices] = useState(false);
-  const [isBusy, setIsBusy] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isSpeechSynthesisSupported, setIsSpeechSynthesisSupported] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const { toast } = useToast();
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
-  // Create audio element on component mount
+  // Check if speech synthesis is supported
   useEffect(() => {
-    audioRef.current = new Audio();
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      setIsSpeechSynthesisSupported(true);
 
-    // Event handlers for audio
-    audioRef.current.onplay = () => setIsPlaying(true);
-    audioRef.current.onended = () => setIsPlaying(false);
-    audioRef.current.onpause = () => setIsPlaying(false);
-    audioRef.current.onerror = (e) => {
-      console.error("Audio playback error:", e);
-      setIsPlaying(false);
-      toast({
-        title: "Playback Error",
-        description: "Could not play audio. Try again or choose another voice sample.",
-        variant: "destructive"
-      });
-    };
+      // Load available voices
+      const loadVoices = () => {
+        const availableVoices = window.speechSynthesis.getVoices();
+        if (availableVoices.length > 0) {
+          setVoices(availableVoices);
 
-    // Initial check for voice samples
-    checkVoiceSamples();
+          // Select a default voice (preferably a female English voice)
+          const femaleVoice = availableVoices.find(
+            voice => voice.name.includes('female') || 
+                    voice.name.includes('Samantha') || 
+                    voice.name.includes('Google UK English Female')
+          );
 
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
+          const englishVoice = availableVoices.find(
+            voice => voice.lang.includes('en-')
+          );
+
+          // Set default voice preference
+          setSelectedVoice(femaleVoice || englishVoice || availableVoices[0]);
+        }
+      };
+
+      // Chrome loads voices asynchronously
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
       }
-    };
+
+      loadVoices();
+
+      // Cleanup
+      return () => {
+        if (utteranceRef.current) {
+          window.speechSynthesis.cancel();
+        }
+      };
+    } else {
+      console.warn('Speech synthesis not supported in this browser');
+    }
   }, []);
 
-  // Check for available voice samples
-  const checkVoiceSamples = async () => {
-    setIsCheckingVoices(true);
-    setTtsError(null);
-
-    try {
-      const response = await fetch('/api/tts/voices');
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log("Voice samples response:", data);
-
-      if (data.success) {
-        const availableSamples = Array.isArray(data.samples) ? data.samples : [];
-        setVoiceSamples(availableSamples);
-
-        // Select the first sample by default if none is selected
-        if (availableSamples.length > 0 && !selectedVoiceSample) {
-          console.log(`Auto-selecting first sample: ${availableSamples[0]}`);
-          setSelectedVoiceSample(availableSamples[0]);
-        } else if (availableSamples.length > 0) {
-          // Ensure the selected sample is in the available list
-          if (!availableSamples.includes(selectedVoiceSample)) {
-            console.log(`Previously selected sample ${selectedVoiceSample} not found, selecting ${availableSamples[0]}`);
-            setSelectedVoiceSample(availableSamples[0]);
-          } else {
-            console.log(`Continuing with selected sample: ${selectedVoiceSample}`);
-          }
-        }
-      }
-
-      const hasVoiceSamples = data.samples && data.samples.length > 0;
-
-      // Display file info for better debugging
-      if (data.fileInfo && Array.isArray(data.fileInfo)) {
-        console.log("Voices loaded:", data.fileInfo.length);
-      }
-
-      if (!hasVoiceSamples) {
-        setTtsError("No voice samples found. Please upload WAV files to the training-data/voice-samples directory.");
-      } else {
-        toast({
-          title: "Voice samples detected",
-          description: `Found ${data.samples.length} voice samples ready to use`,
-        });
-      }
-    } catch (error) {
-      console.error("Error checking voice samples:", error);
-      setTtsError(`Error checking voice samples: ${error instanceof Error ? error.message : String(error)}`);
+  const handlePlay = async () => {
+    if (!isSpeechSynthesisSupported) {
       toast({
-        title: "Voice Check Failed",
-        description: `${error instanceof Error ? error.message : String(error)}`,
+        title: "Not Supported",
+        description: "Speech synthesis is not supported in your browser.",
         variant: "destructive"
       });
-    } finally {
-      setIsCheckingVoices(false);
+      return;
     }
-  };
 
-  // Split large voice samples into smaller chunks
-  const splitVoiceSamples = async () => {
-    setIsBusy(true);
-    setTtsError(null);
-
-    try {
-      const response = await fetch('/api/tts/split-samples', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
-      }
-      const data = await response.json();
-
-      if (data.success) {
-        toast({
-          title: "Voice samples split successfully",
-          description: `Split ${data.processed.length} large voice samples into smaller chunks.`,
-          variant: "default"
-        });
-        // Refresh the voice samples list
-        setTimeout(() => {
-          checkVoiceSamples();
-        }, 1000); // Give the server time to finish processing
-      } else {
-        setTtsError(`Failed to split voice samples: ${data.message}`);
-        toast({
-          title: "Failed to split samples",
-          description: data.message || "Unknown error occurred",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error("Error splitting voice samples:", error);
-      setTtsError(`Error splitting voice samples: ${error instanceof Error ? error.message : String(error)}`);
-      toast({
-        title: "Error processing samples",
-        description: `${error instanceof Error ? error.message : String(error)}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsBusy(false);
-    }
-  };
-
-  // Handle speak button click
-  const handleSpeak = async () => {
     if (isPlaying) {
-      stopAudio();
+      window.speechSynthesis.cancel();
+      setIsPlaying(false);
       return;
     }
 
     setIsLoading(true);
-    setTtsError(null);
 
     try {
-      console.log("Sending TTS request with voice sample:", selectedVoiceSample);
+      // Create a new utterance
+      const utterance = new SpeechSynthesisUtterance(text);
+      utteranceRef.current = utterance;
 
-      // Make API request to server-side TTS
-      const response = await fetch('/api/tts/speak', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ 
-          text,
-          voiceSample: selectedVoiceSample
-        })
-      });
-
-      let data;
-      try {
-        // Try to parse as JSON first
-        data = await response.json();
-        console.log("TTS response:", data);
-      } catch (parseError) {
-        // If JSON parsing fails, get the text and log it
-        const errorText = await response.text();
-        console.error("Failed to parse TTS response as JSON:", errorText);
-        throw new Error(`Invalid response format. Server returned: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
+      // Set voice if available
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
       }
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || `Server responded with error ${response.status}`);
-      }
+      // Adjust settings for better speech
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
 
-      if (data.audioUrl) {
-        // Add a timestamp to bust cache
-        const cacheBuster = `?t=${Date.now()}`;
-        const audioUrl = `${data.audioUrl}${cacheBuster}`;
+      // Event handlers
+      utterance.onstart = () => {
+        setIsPlaying(true);
+        setIsLoading(false);
+      };
 
-        if (audioRef.current) {
-          audioRef.current.src = audioUrl;
-          audioRef.current.play()
-            .catch(err => {
-              console.error("Error playing audio:", err);
-              toast({
-                title: "Playback Error",
-                description: `Failed to play audio: ${err.message}`,
-                variant: "destructive"
-              });
-            });
-        }
-      } else {
-        throw new Error(data.message || "Failed to generate speech");
-      }
+      utterance.onend = () => {
+        setIsPlaying(false);
+        utteranceRef.current = null;
+      };
+
+      utterance.onerror = (event) => {
+        console.error('Speech synthesis error:', event);
+        setIsPlaying(false);
+        setIsLoading(false);
+        toast({
+          title: "Speech Error",
+          description: "An error occurred during speech synthesis.",
+          variant: "destructive"
+        });
+        utteranceRef.current = null;
+      };
+
+      // Start speaking
+      window.speechSynthesis.speak(utterance);
     } catch (error) {
       console.error("TTS error:", error);
-      setTtsError(`TTS error: ${error instanceof Error ? error.message : String(error)}`);
+      setIsLoading(false);
       toast({
-        title: "Speech Generation Failed",
-        description: `${error instanceof Error ? error.message : String(error)}`,
+        title: "Speech Failed",
+        description: "Failed to generate speech.",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const stopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
     }
   };
 
   return (
-    <div className={cn("flex flex-col", className)}>
-      <div className="flex gap-2 items-center">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleSpeak}
-          disabled={isLoading || isCheckingVoices || !selectedVoiceSample}
-          className="flex items-center"
-        >
-          {isLoading ? (
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          ) : null}
-          {isPlaying ? "Stop" : "Speak"}
-        </Button>
-
-        <div className="flex-1">
-          {selectedVoiceSample ? (
-            <div className="text-xs opacity-70 truncate">
-              Using: {selectedVoiceSample.replace(/_/g, ' ').replace('.wav', '')}
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground">
-              {voiceSamples.length === 0 ? "No voice samples found" : "Select a voice sample"}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {ttsError && (
-        <div className="text-xs text-red-500 mt-1">{ttsError}</div>
+    <Button
+      variant="ghost"
+      size="icon"
+      className={className}
+      onClick={handlePlay}
+      title={isPlaying ? "Stop speaking" : "Speak text"}
+      disabled={!text || isLoading || !isSpeechSynthesisSupported}
+    >
+      {isLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Volume2 className={`h-4 w-4 ${isPlaying ? 'text-green-500' : ''}`} />
       )}
-
-      <div className="mt-2">
-        <div className="flex flex-col space-y-2">
-          <Button 
-            size="sm" 
-            variant="secondary" 
-            className="w-full"
-            onClick={checkVoiceSamples}
-            disabled={isCheckingVoices}
-          >
-            {isCheckingVoices ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Checking...
-              </>
-            ) : "Check Voice Samples"}
-          </Button>
-
-          {voiceSamples.length > 0 && (
-            <>
-              <div className="flex flex-col space-y-1">
-                <label className="text-xs font-medium">Select Voice Sample:</label>
-                <select 
-                  className="w-full px-2 py-1 rounded text-sm bg-background border"
-                  value={selectedVoiceSample || ''}
-                  onChange={(e) => setSelectedVoiceSample(e.target.value)}
-                >
-                  <option value="">Select a sample</option>
-                  {voiceSamples.map(sample => (
-                    <option key={sample} value={sample}>
-                      {sample}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                onClick={splitVoiceSamples}
-                disabled={isBusy}
-              >
-                {isBusy ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : "Split Large Samples"}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+    </Button>
   );
 }

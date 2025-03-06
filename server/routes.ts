@@ -333,65 +333,19 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     }
   });
 
-  // Voice-based text-to-speech endpoint
+  // Simplified TTS endpoint that returns success without processing
+  // This is needed to maintain API compatibility while we use Web Speech API on client side
   router.post("/api/tts/speak", async (req: Request, res: Response) => {
     // Set content type to ensure proper response format
     res.setHeader('Content-Type', 'application/json');
 
     try {
-      // Check if req.body exists and has expected properties
-      if (!req.body) {
-        return res.status(400).json({ success: false, message: "Invalid request body" });
-      }
-      
-      const { text, voiceSample } = req.body;
-      
-      console.log(`TTS request received: text="${text?.substring(0, 30)}${text?.length > 30 ? '...' : ''}", sample=${voiceSample}`);
-
-      if (!text) {
-        return res.status(400).json({ success: false, message: "No text provided" });
-      }
-
-      if (!voiceSample) {
-        return res.status(400).json({ success: false, message: "No voice sample selected" });
-      }
-
-      // Get the path to the voice sample
-      const samplePath = path.join(TRAINING_DATA_DIR, voiceSample);
-      console.log(`Looking for voice sample at: ${samplePath}`);
-
-      // Check if the sample exists
-      try {
-        await fs.access(samplePath);
-        console.log(`Voice sample found: ${samplePath}`);
-      } catch (e) {
-        console.error(`Voice sample not found: ${samplePath}`, e);
-        return res.status(404).json({
-          success: false,
-          message: `Voice sample ${voiceSample} not found`
-        });
-      }
-
-      // For a simple demo, we'll just use the selected voice sample as the output
-      // In a real implementation, this would send the text to a TTS service
-      console.log(`Processing TTS request with sample: ${voiceSample}`);
-
-      const response = {
+      // Just return success - actual TTS happens in the browser
+      return res.json({
         success: true,
-        message: "Text processed using server-side TTS",
-        audioUrl: `/training-data/voice-samples/${voiceSample}`,
-        text,
-        // Include some metadata that would normally come from a voice API
-        metadata: {
-          duration: Math.ceil(text.split(' ').length / 2.5), // Estimate duration based on word count
-          wordCount: text.split(' ').length,
-          engineType: "server-side-tts",
-          sampleName: voiceSample
-        }
-      };
-      
-      console.log("Sending TTS response:", response);
-      return res.json(response);
+        message: "Using browser-based TTS instead of server TTS",
+        useBrowserTTS: true
+      });
     } catch (error) {
       console.error("Error in TTS endpoint:", error);
       return res.status(500).json({
