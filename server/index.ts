@@ -74,5 +74,7 @@ const checkPortInUse = (port: number): Promise<boolean> => {
     });
   };
 
-  startServer(5000);
+  // Use PORT environment variable (for Railway) or default to 5000
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5000;
+  startServer(PORT);
 })();
