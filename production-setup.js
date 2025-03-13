@@ -87,6 +87,20 @@ if (isProd || isRailway) {
   const uploadsDir = path.resolve(appRoot, 'uploads');
   ensureDirectoryExists(uploadsDir);
   
+  // Make sure training data directories exist
+  const trainingDataDir = path.resolve(appRoot, 'training-data');
+  ensureDirectoryExists(trainingDataDir);
+  
+  const voiceSamplesDir = path.resolve(trainingDataDir, 'voice-samples');
+  ensureDirectoryExists(voiceSamplesDir);
+  
+  // Also ensure these directories exist in dist
+  const distTrainingDataDir = path.resolve(distDir, 'training-data');
+  ensureDirectoryExists(distTrainingDataDir);
+  
+  const distVoiceSamplesDir = path.resolve(distTrainingDataDir, 'voice-samples');
+  ensureDirectoryExists(distVoiceSamplesDir);
+  
   // Create public directory in dist if it doesn't exist
   const createdPublic = ensureDirectoryExists(distPublicDir);
   
@@ -96,22 +110,59 @@ if (isProd || isRailway) {
     const copySuccess = copyDir(publicDir, distPublicDir);
     
     if (copySuccess) {
-      console.log('✅ Files copied successfully');
+      console.log('✅ Public files copied successfully');
     } else {
-      console.warn('⚠️ Failed to copy some files');
+      console.warn('⚠️ Failed to copy some public files');
     }
   } else {
     console.warn(`⚠️ Public directory ${publicDir} not found - skipping copy`);
+  }
+  
+  // Copy training data files if they exist
+  if (fs.existsSync(trainingDataDir)) {
+    console.log(`📋 Copying training data from ${trainingDataDir} to ${distTrainingDataDir}`);
+    const copyTrainingSuccess = copyDir(trainingDataDir, distTrainingDataDir);
+    
+    if (copyTrainingSuccess) {
+      console.log('✅ Training data copied successfully');
+    } else {
+      console.warn('⚠️ Failed to copy some training data files');
+    }
+  } else {
+    console.warn(`⚠️ Training data directory ${trainingDataDir} not found - skipping copy`);
+  }
+  
+  // Copy cyn-training-data.json if it exists
+  const cynTrainingDataPath = path.resolve(appRoot, 'cyn-training-data.json');
+  const distCynTrainingDataPath = path.resolve(distDir, 'cyn-training-data.json');
+  
+  if (fs.existsSync(cynTrainingDataPath)) {
+    try {
+      fs.copyFileSync(cynTrainingDataPath, distCynTrainingDataPath);
+      console.log('✅ Copied cyn-training-data.json successfully');
+    } catch (err) {
+      console.warn('⚠️ Failed to copy cyn-training-data.json:', err.message);
+    }
+  } else {
+    console.warn('⚠️ cyn-training-data.json not found - skipping copy');
   }
   
   // List the directory structure for debugging
   console.log('📊 Final directory structure:');
   listFiles(distDir);
   
+  // Make sure dist/uploads directory exists and is writable
+  const distUploadsDir = path.resolve(distDir, 'uploads');
+  ensureDirectoryExists(distUploadsDir);
+  
+  const distUploadVoicesDir = path.resolve(distUploadsDir, 'voice-samples');
+  ensureDirectoryExists(distUploadVoicesDir);
+  
   // Fix any potential permissions issues
   try {
     console.log('🔒 Setting permissions...');
     execSync(`chmod -R 755 ${distDir}`);
+    execSync(`chmod -R 777 ${distUploadsDir}`); // Make uploads writable
     console.log('✅ Permissions set successfully');
   } catch (err) {
     console.warn('⚠️ Failed to set permissions:', err.message);

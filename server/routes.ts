@@ -19,13 +19,78 @@ export async function registerRoutes(app: express.Express) {
   const router = Router();
 
   // Health check endpoint for Railway
-  router.get("/health", (req: Request, res: Response) => {
-    res.status(200).json({
-      status: "ok",
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      message: "Cyn AI voice transformation platform is running"
-    });
+  router.get("/health", async (req: Request, res: Response) => {
+    try {
+      // Check if training data and uploads directories exist
+      const directories = [
+        path.join(__dirname, '..', 'training-data'),
+        path.join(__dirname, '..', 'training-data', 'voice-samples'),
+        path.join(__dirname, '..', 'uploads'),
+        path.join(__dirname, '..', 'public')
+      ];
+      
+      const directoryChecks = {};
+      for (const dir of directories) {
+        try {
+          await fs.access(dir);
+          directoryChecks[dir] = true;
+        } catch (err) {
+          directoryChecks[dir] = false;
+        }
+      }
+      
+      // Get system resource info
+      const memoryUsage = process.memoryUsage();
+      const cpuUsage = process.cpuUsage();
+      
+      // Check if key config files exist
+      const configFiles = {
+        'cyn-training-data.json': await fs.access(path.join(__dirname, '..', 'cyn-training-data.json'))
+          .then(() => true)
+          .catch(() => false)
+      };
+      
+      // Check for required environment variables
+      const requiredEnvVars = ['GEMINI_API_KEY'];
+      const envVarStatus = {};
+      for (const envVar of requiredEnvVars) {
+        envVarStatus[envVar] = !!process.env[envVar];
+      }
+      
+      res.status(200).json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        message: "Cyn AI voice transformation platform is running",
+        version: process.env.npm_package_version || "unknown",
+        environment: process.env.NODE_ENV || "development",
+        system: {
+          nodeVersion: process.version,
+          platform: process.platform,
+          arch: process.arch,
+          memory: {
+            rss: `${Math.round(memoryUsage.rss / 1024 / 1024)} MB`,
+            heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
+            heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
+            external: `${Math.round(memoryUsage.external / 1024 / 1024)} MB`,
+          },
+          cpu: cpuUsage
+        },
+        checks: {
+          directories: directoryChecks,
+          configFiles,
+          envVars: envVarStatus
+        }
+      });
+    } catch (error) {
+      console.error("Health check failed:", error);
+      res.status(500).json({
+        status: "error",
+        timestamp: new Date().toISOString(),
+        message: "Health check failed",
+        error: String(error)
+      });
+    }
   });
   
   // Get all messages
