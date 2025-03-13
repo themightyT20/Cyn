@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 import { storage } from "./storage";
 import { log } from "./vite";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { execSync } from "child_process";
+import ffmpegStatic from "ffmpeg-static";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,7 +61,11 @@ export async function registerRoutes(app: express.Express) {
       const voiceFiles = files.filter(file => file.endsWith('.wav') && !file.endsWith('_original.wav.bak'));
 
       // Get file sizes
-      const fileSizes = {};
+      const fileSizes: Record<string, {
+        size: number;
+        sizeInMB: string;
+        isLarge: boolean;
+      }> = {};
       const fileInfo = [];
       for (const file of voiceFiles) {
         try {
@@ -114,7 +120,12 @@ export async function registerRoutes(app: express.Express) {
         path.join(__dirname, '..', 'uploads', 'voice-samples')
       ];
 
-      const results = {};
+      const results: Record<string, {
+        exists: boolean;
+        fileCount?: number;
+        voiceFiles?: string[];
+        error?: string;
+      }> = {};
 
       for (const dir of directories) {
         try {
@@ -200,10 +211,10 @@ Your traits include: ${character.traits.join(', ')}.
 Follow these guidelines: ${response_guidelines.general_approach}
 Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
 
-        exampleConversations = conversations.map(conv => ({
+        exampleConversations = conversations.map((conv: { user: string; assistant: string }) => ({
           role: "user",
           parts: [{ text: conv.user }]
-        })).flatMap((userMsg, i) => [
+        })).flatMap((userMsg: any, i: number) => [
           userMsg,
           {
             role: "model",
@@ -447,7 +458,7 @@ Style preferences: ${response_guidelines.style_preferences.join(', ')}`;
     }
   });
 
-            const ffprobePath = ffmpegPath?.replace('ffmpeg', 'ffprobe') || 'ffprobe';
+            const ffprobePath = ffmpegStatic?.replace('ffmpeg', 'ffprobe') || 'ffprobe';
             const durationOutput = execSync(
               `"${ffprobePath}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`
             ).toString().trim();
