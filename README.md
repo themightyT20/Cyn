@@ -1,4 +1,4 @@
-# Cyn AI Voice Transformation and Cloning Platform
+# Your New Website Name - Voice Transformation and Cloning Platform
 
 A TypeScript-based AI voice transformation and cloning platform with advanced audio processing capabilities, enabling personalized voice experiences through intelligent machine learning techniques. This application features a chat interface with text-to-speech capabilities, image generation, and web search functionality.
 
