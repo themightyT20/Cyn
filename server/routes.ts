@@ -16,6 +16,16 @@ const TRAINING_DATA_DIR = path.join(__dirname, '..', 'training-data', 'voice-sam
 export async function registerRoutes(app: express.Express) {
   const router = Router();
 
+  // Health check endpoint for Railway
+  router.get("/health", (req: Request, res: Response) => {
+    res.status(200).json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      message: "Cyn AI voice transformation platform is running"
+    });
+  });
+  
   // Get all messages
   router.get("/api/messages", async (_req: Request, res: Response) => {
     try {

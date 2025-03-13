@@ -1,1 +1,1 @@
-web: NODE_ENV=production node dist/index.js
+web: NODE_ENV=production node production-setup.js && node dist/index.js
