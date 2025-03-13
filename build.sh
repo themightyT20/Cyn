@@ -26,6 +26,7 @@ echo "📁 Creating directories structure..."
 mkdir -p dist/public
 mkdir -p dist/uploads
 mkdir -p dist/training-data
+mkdir -p dist/server
 
 # Copy public assets
 echo "🔄 Copying public assets..."

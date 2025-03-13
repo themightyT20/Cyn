@@ -135,6 +135,10 @@ if (isProd || isRailway) {
   // Copy cyn-training-data.json if it exists
   const cynTrainingDataPath = path.resolve(appRoot, 'cyn-training-data.json');
   const distCynTrainingDataPath = path.resolve(distDir, 'cyn-training-data.json');
+  const serverDistDir = path.resolve(distDir, 'server');
+  
+  // Ensure server directory exists
+  ensureDirectoryExists(serverDistDir);
   
   if (fs.existsSync(cynTrainingDataPath)) {
     try {
