@@ -29,7 +29,7 @@ export async function registerRoutes(app: express.Express) {
         path.join(__dirname, '..', 'public')
       ];
       
-      const directoryChecks = {};
+      const directoryChecks: Record<string, boolean> = {};
       for (const dir of directories) {
         try {
           await fs.access(dir);
@@ -52,7 +52,7 @@ export async function registerRoutes(app: express.Express) {
       
       // Check for required environment variables
       const requiredEnvVars = ['GEMINI_API_KEY'];
-      const envVarStatus = {};
+      const envVarStatus: Record<string, boolean> = {};
       for (const envVar of requiredEnvVars) {
         envVarStatus[envVar] = !!process.env[envVar];
       }
