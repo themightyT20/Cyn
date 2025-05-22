@@ -1,0 +1,4 @@
+# wrangler.toml
+name = "cyn"
+compatibility_date = "2024-05-22"
+node_compat = true
